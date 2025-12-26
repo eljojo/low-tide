@@ -1,23 +1,91 @@
 "use strict";
 (() => {
+  // node_modules/zustand/esm/vanilla.mjs
+  var createStoreImpl = (createState) => {
+    let state;
+    const listeners = /* @__PURE__ */ new Set();
+    const setState = (partial, replace) => {
+      const nextState = typeof partial === "function" ? partial(state) : partial;
+      if (!Object.is(nextState, state)) {
+        const previousState = state;
+        state = (replace != null ? replace : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
+        listeners.forEach((listener) => listener(state, previousState));
+      }
+    };
+    const getState = () => state;
+    const getInitialState = () => initialState;
+    const subscribe = (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    };
+    const api = { setState, getState, getInitialState, subscribe };
+    const initialState = state = createState(setState, getState, api);
+    return api;
+  };
+  var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
+
   // frontend/src/main.ts
-  var STATE = {
+  var useStore = createStore((set) => ({
     jobs: {},
-    // Map<id, JobObject>
     selectedJobId: null,
     showArchived: false,
-    consoleCollapsed: true
-  };
+    consoleCollapsed: true,
+    setJobs: (jobs) => set((state) => {
+      const newJobs = {};
+      jobs.forEach((j) => {
+        newJobs[j.id] = { ...state.jobs[j.id], ...j };
+      });
+      return { jobs: newJobs };
+    }),
+    updateJob: (job) => set((state) => ({
+      jobs: {
+        ...state.jobs,
+        [job.id]: { ...state.jobs[job.id], ...job }
+      }
+    })),
+    appendLog: (jobId, line) => set((state) => {
+      const job = state.jobs[jobId];
+      if (!job) return state;
+      const currentLogs = job.logs || "";
+      const newLogs = currentLogs + (currentLogs !== "" ? String.fromCharCode(10) : "") + line;
+      return {
+        jobs: {
+          ...state.jobs,
+          [jobId]: { ...job, logs: newLogs }
+        }
+      };
+    }),
+    selectJob: (id) => set((state) => {
+      const job = state.jobs[id];
+      let consoleCollapsed = state.consoleCollapsed;
+      if (job) {
+        consoleCollapsed = job.status === "success";
+      }
+      return { selectedJobId: id, consoleCollapsed };
+    }),
+    deleteJob: (id) => set((state) => {
+      const newJobs = { ...state.jobs };
+      delete newJobs[id];
+      return {
+        jobs: newJobs,
+        selectedJobId: state.selectedJobId === id ? null : state.selectedJobId
+      };
+    }),
+    toggleArchived: () => set((state) => ({ showArchived: !state.showArchived })),
+    toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
+    setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed })
+  }));
   var stateSocket = null;
   function render() {
     renderJobsLists();
     renderSelectedJobPane();
   }
   function renderJobsLists() {
+    const state = useStore.getState();
     const activeList = document.getElementById("jobs-list");
     const archivedList = document.getElementById("archived-list");
     if (!activeList || !archivedList) return;
-    const allJobs = Object.values(STATE.jobs).sort(
+    const allJobs = Object.values(state.jobs).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     activeList.innerHTML = "";
@@ -33,7 +101,7 @@
     const archivedSec = document.getElementById("archived-section");
     const toggleBtn = document.getElementById("toggle-archived");
     if (archivedSec && toggleBtn) {
-      if (STATE.showArchived) {
+      if (state.showArchived) {
         archivedSec.style.display = "block";
         toggleBtn.textContent = "\u25BE";
       } else {
@@ -48,9 +116,10 @@
     }
   }
   function createJobItem(job) {
+    const state = useStore.getState();
     const div = document.createElement("div");
     div.className = "job-item";
-    if (STATE.selectedJobId === job.id) div.classList.add("selected");
+    if (state.selectedJobId === job.id) div.classList.add("selected");
     const header = document.createElement("div");
     header.className = "job-header";
     const left = document.createElement("div");
@@ -71,13 +140,14 @@
     return div;
   }
   function renderSelectedJobPane() {
+    const state = useStore.getState();
     const pane = document.getElementById("files-pane");
     if (!pane) return;
-    if (!STATE.selectedJobId) {
+    if (!state.selectedJobId) {
       pane.style.display = "none";
       return;
     }
-    const job = STATE.jobs[STATE.selectedJobId];
+    const job = state.jobs[state.selectedJobId];
     if (!job) {
       pane.style.display = "none";
       return;
@@ -92,7 +162,7 @@
     const consoleInner = document.getElementById("console-inner");
     const toggleBtn = document.getElementById("toggle-console");
     if (consoleInner && toggleBtn) {
-      if (STATE.consoleCollapsed) {
+      if (state.consoleCollapsed) {
         consoleInner.classList.remove("expanded");
         toggleBtn.textContent = "Expand";
       } else {
@@ -224,28 +294,18 @@
     try {
       const res = await fetch("/api/jobs");
       const jobs = await res.json();
-      jobs.forEach((j) => updateJobState(j));
+      useStore.getState().setJobs(jobs);
       const runningJob = jobs.find((j) => j.status === "running");
       if (runningJob) {
         selectJob(runningJob.id);
       }
-      render();
       connectWebSocket();
     } catch (e) {
       console.error("Initial load failed", e);
     }
   }
   async function selectJob(id) {
-    if (STATE.selectedJobId === id) return;
-    STATE.selectedJobId = id;
-    const job = STATE.jobs[id];
-    if (job && job.status === "success") {
-      STATE.consoleCollapsed = true;
-    } else {
-      STATE.consoleCollapsed = false;
-    }
-    if (!job) return;
-    render();
+    useStore.getState().selectJob(id);
     await fetchJobDetails(id);
   }
   async function fetchJobDetails(id) {
@@ -254,21 +314,12 @@
       if (res.ok) {
         const job = await res.json();
         if (job) {
-          updateJobState(job);
+          useStore.getState().updateJob(job);
         }
       }
     } catch (e) {
       console.error(e);
     }
-  }
-  function updateJobState(job) {
-    const id = job.id;
-    if (!STATE.jobs[id]) {
-      STATE.jobs[id] = { ...job, logs: job.logs || "", files: job.files || [] };
-    } else {
-      STATE.jobs[id] = { ...STATE.jobs[id], ...job };
-    }
-    render();
   }
   function connectWebSocket() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -284,29 +335,21 @@
     stateSocket.onclose = () => setTimeout(connectWebSocket, 2e3);
   }
   function handleWSMessage(msg) {
+    const { getState } = useStore;
     if (msg.type === "job_snapshot") {
       if (msg.job) {
-        const oldStatus = STATE.jobs[msg.job.id] ? STATE.jobs[msg.job.id].status : null;
-        updateJobState(msg.job);
-        if (msg.job.id === STATE.selectedJobId) {
+        const oldStatus = getState().jobs[msg.job.id]?.status;
+        getState().updateJob(msg.job);
+        if (msg.job.id === getState().selectedJobId) {
           if (oldStatus === "running" && msg.job.status === "success") {
-            STATE.consoleCollapsed = true;
-            renderSelectedJobPane();
+            getState().setConsoleCollapsed(true);
           }
         } else if (msg.job.status === "running") {
           selectJob(msg.job.id);
         }
       }
     } else if (msg.type === "job_log") {
-      const job = STATE.jobs[msg.job_id];
-      if (job) {
-        if (job.logs === void 0 || job.logs === null) job.logs = "";
-        if (job.logs !== "") job.logs += String.fromCharCode(10);
-        job.logs += msg.line;
-        if (STATE.selectedJobId === msg.job_id) {
-          renderLogs(job);
-        }
-      }
+      getState().appendLog(msg.job_id, msg.line);
     } else if (msg.type === "jobs_archived") {
       loadInitialData();
     }
@@ -324,29 +367,27 @@
     });
   }
   document.getElementById("toggle-archived")?.addEventListener("click", () => {
-    STATE.showArchived = !STATE.showArchived;
-    render();
+    useStore.getState().toggleArchived();
   });
   document.getElementById("toggle-console")?.addEventListener("click", () => {
-    STATE.consoleCollapsed = !STATE.consoleCollapsed;
-    renderSelectedJobPane();
+    useStore.getState().toggleConsole();
   });
   document.getElementById("action-retry")?.addEventListener("click", async () => {
-    if (!STATE.selectedJobId) return;
-    await fetch(`/api/jobs/${STATE.selectedJobId}/retry`, { method: "POST" });
+    const { selectedJobId } = useStore.getState();
+    if (!selectedJobId) return;
+    await fetch(`/api/jobs/${selectedJobId}/retry`, { method: "POST" });
   });
   document.getElementById("action-archive")?.addEventListener("click", async () => {
-    if (!STATE.selectedJobId) return;
-    await fetch(`/api/jobs/${STATE.selectedJobId}/archive`, { method: "POST" });
+    const { selectedJobId } = useStore.getState();
+    if (!selectedJobId) return;
+    await fetch(`/api/jobs/${selectedJobId}/archive`, { method: "POST" });
   });
   document.getElementById("action-delete")?.addEventListener("click", async () => {
-    if (!STATE.selectedJobId) return;
+    const { selectedJobId } = useStore.getState();
+    if (!selectedJobId) return;
     if (!confirm("Delete job? \u26A0\uFE0F this will also delete the files")) return;
-    const id = STATE.selectedJobId;
-    await fetch(`/api/jobs/${id}/delete`, { method: "POST" });
-    delete STATE.jobs[id];
-    STATE.selectedJobId = null;
-    render();
+    await fetch(`/api/jobs/${selectedJobId}/delete`, { method: "POST" });
+    useStore.getState().deleteJob(selectedJobId);
   });
   function humanSize(bytes) {
     if (bytes === void 0) return "";
@@ -359,5 +400,9 @@
     const gb = mb / 1024;
     return Math.round(gb) + " GB";
   }
+  useStore.subscribe(() => {
+    render();
+  });
   loadInitialData();
+  render();
 })();

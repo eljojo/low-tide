@@ -1,3 +1,5 @@
+import { createStore } from 'zustand/vanilla';
+
 interface FileInfo {
   id: number;
   path: string;
@@ -21,15 +23,72 @@ interface State {
   selectedJobId: number | null;
   showArchived: boolean;
   consoleCollapsed: boolean;
+  setJobs: (jobs: Job[]) => void;
+  updateJob: (job: Job) => void;
+  appendLog: (jobId: number, line: string) => void;
+  selectJob: (id: number) => void;
+  deleteJob: (id: number) => void;
+  toggleArchived: () => void;
+  toggleConsole: () => void;
+  setConsoleCollapsed: (collapsed: boolean) => void;
 }
 
-// GIANT OBJECT STATE
-const STATE: State = {
-  jobs: {}, // Map<id, JobObject>
+const useStore = createStore<State>((set) => ({
+  jobs: {},
   selectedJobId: null,
   showArchived: false,
   consoleCollapsed: true,
-};
+
+  setJobs: (jobs) => set((state) => {
+    const newJobs: Record<number, Job> = {};
+    jobs.forEach(j => {
+      newJobs[j.id] = { ...state.jobs[j.id], ...j };
+    });
+    return { jobs: newJobs };
+  }),
+
+  updateJob: (job) => set((state) => ({
+    jobs: {
+      ...state.jobs,
+      [job.id]: { ...state.jobs[job.id], ...job }
+    }
+  })),
+
+  appendLog: (jobId, line) => set((state) => {
+    const job = state.jobs[jobId];
+    if (!job) return state;
+    const currentLogs = job.logs || "";
+    const newLogs = currentLogs + (currentLogs !== "" ? String.fromCharCode(10) : "") + line;
+    return {
+      jobs: {
+        ...state.jobs,
+        [jobId]: { ...job, logs: newLogs }
+      }
+    };
+  }),
+
+  selectJob: (id) => set((state) => {
+    const job = state.jobs[id];
+    let consoleCollapsed = state.consoleCollapsed;
+    if (job) {
+      consoleCollapsed = job.status === 'success';
+    }
+    return { selectedJobId: id, consoleCollapsed };
+  }),
+
+  deleteJob: (id) => set((state) => {
+    const newJobs = { ...state.jobs };
+    delete newJobs[id];
+    return {
+      jobs: newJobs,
+      selectedJobId: state.selectedJobId === id ? null : state.selectedJobId
+    };
+  }),
+
+  toggleArchived: () => set((state) => ({ showArchived: !state.showArchived })),
+  toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
+  setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed }),
+}));
 
 let stateSocket: WebSocket | null = null;
 
@@ -41,12 +100,12 @@ function render(): void {
 }
 
 function renderJobsLists(): void {
+  const state = useStore.getState();
   const activeList = document.getElementById('jobs-list');
   const archivedList = document.getElementById('archived-list');
   if (!activeList || !archivedList) return;
 
-  // Convert map to array and sort by created_at desc
-  const allJobs = Object.values(STATE.jobs).sort((a, b) => 
+  const allJobs = Object.values(state.jobs).sort((a, b) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
   
@@ -65,7 +124,7 @@ function renderJobsLists(): void {
   const archivedSec = document.getElementById('archived-section');
   const toggleBtn = document.getElementById('toggle-archived');
   if (archivedSec && toggleBtn) {
-    if (STATE.showArchived) {
+    if (state.showArchived) {
       archivedSec.style.display = 'block';
       toggleBtn.textContent = '▾';
     } else {
@@ -74,7 +133,6 @@ function renderJobsLists(): void {
     }
   }
 
-  // Check for any running jobs to show global indicator
   const isAnyJobRunning = allJobs.some(job => job.status === 'running');
   const globalIndicator = document.getElementById('global-indicator');
   if (globalIndicator) {
@@ -83,9 +141,10 @@ function renderJobsLists(): void {
 }
 
 function createJobItem(job: Job): HTMLElement {
+  const state = useStore.getState();
   const div = document.createElement('div');
   div.className = 'job-item';
-  if (STATE.selectedJobId === job.id) div.classList.add('selected');
+  if (state.selectedJobId === job.id) div.classList.add('selected');
   
   const header = document.createElement('div');
   header.className = 'job-header';
@@ -114,14 +173,15 @@ function createJobItem(job: Job): HTMLElement {
 }
 
 function renderSelectedJobPane(): void {
+  const state = useStore.getState();
   const pane = document.getElementById('files-pane');
   if (!pane) return;
 
-  if (!STATE.selectedJobId) {
+  if (!state.selectedJobId) {
     pane.style.display = 'none';
     return;
   }
-  const job = STATE.jobs[STATE.selectedJobId];
+  const job = state.jobs[state.selectedJobId];
   if (!job) {
     pane.style.display = 'none';
     return;
@@ -129,25 +189,18 @@ function renderSelectedJobPane(): void {
   
   pane.style.display = '';
   
-  // Header
   const title = job.title && job.title !== '' ? job.title : (job.url || job.original_url || '#' + job.id);
   const titleEl = document.getElementById('files-job-title');
   if (titleEl) titleEl.textContent = title;
   
-  // Actions
   updateJobActions(job);
-  
-  // Files
   renderFilesList(job);
-  
-  // Logs
   renderLogs(job);
 
-  // Console collapse state
   const consoleInner = document.getElementById('console-inner');
   const toggleBtn = document.getElementById('toggle-console');
   if (consoleInner && toggleBtn) {
-    if (STATE.consoleCollapsed) {
+    if (state.consoleCollapsed) {
         consoleInner.classList.remove('expanded');
         toggleBtn.textContent = 'Expand';
     } else {
@@ -249,7 +302,6 @@ function renderLogs(job: Job): void {
         pre.textContent = job.logs;
     }
     
-    // Auto-scroll if running
     if (job.status === 'running') {
        logView.scrollTop = logView.scrollHeight;
     }
@@ -298,14 +350,13 @@ async function loadInitialData(): Promise<void> {
       const res = await fetch('/api/jobs');
       const jobs: Job[] = await res.json();
       
-      jobs.forEach(j => updateJobState(j));
+      useStore.getState().setJobs(jobs);
       
       const runningJob = jobs.find(j => j.status === 'running');
       if (runningJob) {
           selectJob(runningJob.id);
       }
       
-      render();
       connectWebSocket();
   } catch (e) {
       console.error('Initial load failed', e);
@@ -313,20 +364,7 @@ async function loadInitialData(): Promise<void> {
 }
 
 async function selectJob(id: number): Promise<void> {
-    if (STATE.selectedJobId === id) return; 
-    
-    STATE.selectedJobId = id;
-    
-    const job = STATE.jobs[id];
-    if (job && job.status === 'success') {
-        STATE.consoleCollapsed = true;
-    } else {
-        STATE.consoleCollapsed = false;
-    }
-    
-    if (!job) return;
-
-    render();
+    useStore.getState().selectJob(id);
     await fetchJobDetails(id);
 }
 
@@ -336,21 +374,10 @@ async function fetchJobDetails(id: number): Promise<void> {
         if (res.ok) {
             const job: Job = await res.json();
             if (job) {
-                updateJobState(job);
+                useStore.getState().updateJob(job);
             }
         }
     } catch (e) { console.error(e); }
-}
-
-function updateJobState(job: Job): void {
-    const id = job.id;
-    if (!STATE.jobs[id]) {
-        STATE.jobs[id] = { ...job, logs: job.logs || "", files: job.files || [] };
-    } else {
-        STATE.jobs[id] = { ...STATE.jobs[id], ...job };
-    }
-    
-    render();
 }
 
 // --- WEBSOCKET ---
@@ -368,36 +395,23 @@ function connectWebSocket(): void {
 }
 
 function handleWSMessage(msg: any): void {
+    const { getState } = useStore;
     if (msg.type === 'job_snapshot') {
         if (msg.job) {
-            const oldStatus = STATE.jobs[msg.job.id] ? STATE.jobs[msg.job.id].status : null;
-            updateJobState(msg.job);
+            const oldStatus = getState().jobs[msg.job.id]?.status;
+            getState().updateJob(msg.job);
             
-            if (msg.job.id === STATE.selectedJobId) {
-                // If transitioning running -> success, collapse console
+            if (msg.job.id === getState().selectedJobId) {
                 if (oldStatus === 'running' && msg.job.status === 'success') {
-                    STATE.consoleCollapsed = true;
-                    renderSelectedJobPane();
+                    getState().setConsoleCollapsed(true);
                 }
             } else if (msg.job.status === 'running') {
-                // If new running job, select it
                 selectJob(msg.job.id);
             }
         }
     } else if (msg.type === 'job_log') {
-        const job = STATE.jobs[msg.job_id];
-        if (job) {
-            if (job.logs === undefined || job.logs === null) job.logs = "";
-            if (job.logs !== "") job.logs += String.fromCharCode(10); // new line
-            job.logs += msg.line;
-            
-            // Only re-render if this is the selected job
-            if (STATE.selectedJobId === msg.job_id) {
-                renderLogs(job);
-            }
-        }
+        getState().appendLog(msg.job_id, msg.line);
     } else if (msg.type === 'jobs_archived') {
-        // Reload everything to be safe
         loadInitialData();
     }
 }
@@ -418,33 +432,31 @@ if (newJobForm) {
 }
 
 document.getElementById('toggle-archived')?.addEventListener('click', () => {
-    STATE.showArchived = !STATE.showArchived;
-    render();
+    useStore.getState().toggleArchived();
 });
 
 document.getElementById('toggle-console')?.addEventListener('click', () => {
-    STATE.consoleCollapsed = !STATE.consoleCollapsed;
-    renderSelectedJobPane(); 
+    useStore.getState().toggleConsole();
 });
 
 document.getElementById('action-retry')?.addEventListener('click', async () => {
-    if (!STATE.selectedJobId) return;
-    await fetch(`/api/jobs/${STATE.selectedJobId}/retry`, { method: 'POST' });
+    const { selectedJobId } = useStore.getState();
+    if (!selectedJobId) return;
+    await fetch(`/api/jobs/${selectedJobId}/retry`, { method: 'POST' });
 });
 
 document.getElementById('action-archive')?.addEventListener('click', async () => {
-    if (!STATE.selectedJobId) return;
-    await fetch(`/api/jobs/${STATE.selectedJobId}/archive`, { method: 'POST' });
+    const { selectedJobId } = useStore.getState();
+    if (!selectedJobId) return;
+    await fetch(`/api/jobs/${selectedJobId}/archive`, { method: 'POST' });
 });
 
 document.getElementById('action-delete')?.addEventListener('click', async () => {
-    if (!STATE.selectedJobId) return;
+    const { selectedJobId } = useStore.getState();
+    if (!selectedJobId) return;
     if (!confirm('Delete job? ⚠️ this will also delete the files')) return;
-    const id = STATE.selectedJobId;
-    await fetch(`/api/jobs/${id}/delete`, { method: 'POST' });
-    delete STATE.jobs[id];
-    STATE.selectedJobId = null;
-    render();
+    await fetch(`/api/jobs/${selectedJobId}/delete`, { method: 'POST' });
+    useStore.getState().deleteJob(selectedJobId);
 });
 
 function humanSize(bytes: number | undefined): string {
@@ -459,4 +471,11 @@ function humanSize(bytes: number | undefined): string {
   return Math.round(gb) + ' GB';
 }
 
+// Subscribe to store changes to trigger render
+useStore.subscribe(() => {
+  render();
+});
+
+// Kick off initial load
 loadInitialData();
+render(); // Initial render
