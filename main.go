@@ -318,7 +318,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) {
-	files, err := store.GetJobPaths(s.DB, jobID)
+	files, err := store.ListJobFiles(s.DB, jobID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -437,7 +437,7 @@ func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Server) deleteJobArtifacts(jobID int64) error {
-	files, err := store.GetJobPaths(s.DB, jobID)
+	files, err := store.ListJobFiles(s.DB, jobID)
 	if err != nil {
 		return err
 	}

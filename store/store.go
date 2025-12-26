@@ -399,11 +399,6 @@ func DeleteJob(db *sql.DB, jobID int64) error {
 	return err
 }
 
-// GetJobPaths is a synonym for ListJobFiles, kept for compatibility.
-func GetJobPaths(db *sql.DB, jobID int64) ([]JobFile, error) {
-	return ListJobFiles(db, jobID)
-}
-
 // DeleteJobLogs clears the logs column for a job.
 func DeleteJobLogs(db *sql.DB, jobID int64) error {
 	_, err := db.Exec(`UPDATE jobs SET logs = NULL WHERE id = ?`, jobID)
