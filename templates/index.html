@@ -308,7 +308,6 @@ https://example.com/file2.mp3"></textarea>
 </footer>
 
 <script>
-  let currentLogSocket = null;
   let stateSocket = null;
   let selectedJob = null; // user-selected pinned job
   let pinned = false;
@@ -376,132 +375,126 @@ https://example.com/file2.mp3"></textarea>
   async function handleStateMessage(msg) {
     if (!msg || !msg.type) return;
     const pre = document.getElementById('log-pre');
+    
     switch (msg.type) {
-      case 'job_update':
-        // refresh job list
-        await fetchState();
+      case 'job_snapshot':
+        // Full update for a job: metadata, files, status
+        if (!msg.job) return;
+        
+        // Update the job in the list directly if present
+        // Only fetch state if job is new or if status changed in a way that might reorder lists
+        // (e.g. archiving, but archiving has its own event)
+        // For now, let's avoid fetchState entirely on snapshot and rely on DOM patching
+        // or simply updating the specific item if found.
+        const existingItem = document.querySelectorAll('.job-item');
+        let found = false;
+        // This is tricky without a data model. Let's try to update the status pill if found.
+        // Or simpler: Check if we REALLY need to fetch.
+        // If the job ID is known and status hasn't changed from what we have locally (if we tracked it), no fetch.
+        // But we don't track all jobs locally in a map.
+        
+        // COMPROMISE: debounced fetchState. If snapshots come in fast, we only fetch once every 2s.
+        // BETTER: Do not fetchState on snapshot. Snapshot IS the state for that job.
 
-        // If the update pertains to the currently selected job, refresh files/logs and update UI
-        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
-          await fetchJobFiles(msg.job_id);
-          await fetchJobLogs(msg.job_id);
-          // auto-collapse console on success, expand on running/failed
-          if (msg.status === 'success') {
+        // If selected, update details
+        if (selectedJob && selectedJob.id === msg.job.id) {
+          // Update local ref
+          selectedJob = msg.job;
+          document.getElementById('files-job-title').textContent = selectedJob.title || ('#' + selectedJob.id);
+          
+          // Files
+          const files = msg.files || [];
+          renderFilesList(msg.job.id, files);
+          
+          const filesAreaInner = document.getElementById('files-area-inner');
+          if (files.length > 0) {
+            filesAreaInner.classList.add('expanded');
+          } else if (msg.job.status === 'running') {
+            filesAreaInner.classList.remove('expanded');
+          }
+
+          // Auto-collapse console on success
+          if (msg.job.status === 'success') {
             collapseConsole();
-          } else if (msg.status === 'running' || msg.status === 'failed') {
+          } else if (msg.job.status === 'running' || msg.job.status === 'failed') {
             expandConsole();
           }
+          
+          updateJobActions(selectedJob, files.length);
         }
 
-        // auto-select queued jobs: always select the new job except when the user has
-        // a pinned job AND that pinned job is currently running.
-        if (msg.status === 'queued' && msg.job_id) {
-          try {
-            // fetch current job status (server-reported)
-            const curRes = await fetch('/api/current');
-            const cur = await curRes.json();
-
-            // fetch latest jobs snapshot
-            const r = await fetch('/api/jobs');
-            const jobs = await r.json();
-            const found = jobs.find(j => j.id === msg.job_id);
-            if (!found) return;
-
-            // If user has pinned a job and that pinned job is running, don't disturb it.
-            if (pinned && selectedJob && selectedJob.status === 'running') {
-              // keep user's pinned running job selected
-              return;
+        // Update the job item in the list if it exists
+        // We need to iterate or find the specific job item.
+        // Ideally job items should have an ID.
+        // Let's assume we can re-render the list item if we had the list data.
+        // Since we don't have a global jobs list variable (it's inside fetchState), 
+        // we can't easily patch the list without fetching.
+        
+        // CHANGE: Add ID to job-item divs in renderJobs so we can find them.
+        // Then patch the status/title.
+        const jobItem = document.getElementById('job-item-' + msg.job.id);
+        if (jobItem) {
+            // Update status class and text
+            const statusPill = jobItem.querySelector('.status-pill');
+            if (statusPill) {
+                statusPill.className = 'status-pill status-' + msg.job.status;
+                statusPill.textContent = msg.job.status.toUpperCase();
             }
-
-            // Otherwise select the new job. We intentionally replace selection even if
-            // something else was selected, per user rule.
-            selectJob(found);
-
-          } catch (e) {
-            // best-effort fallback: attempt to find and select the job
-            try {
-              const r = await fetch('/api/jobs');
-              const jobs = await r.json();
-              const found = jobs.find(j => j.id === msg.job_id);
-              if (!found) return;
-              if (pinned && selectedJob && selectedJob.status === 'running') return;
-              selectJob(found);
-            } catch (e2) {
-              // ignore
+            // Update title/app if needed (rarely changes)
+            const titleDiv = jobItem.querySelector('.job-header > div:first-child');
+            if (titleDiv) {
+                 const title = msg.job.title && msg.job.title !== '' ? msg.job.title : (msg.job.urls || []).join(' ');
+                 titleDiv.innerHTML = `${msg.job.app_id} &middot; ${title}`;
             }
-          }
+            // Running state animation
+            if (msg.job.status === 'running') jobItem.classList.add('running');
+            else jobItem.classList.remove('running');
+            
+            // Update click handler closure? No, id is same.
+            jobItem.onclick = () => selectJob(msg.job);
+        } else {
+            // New job? If status is queued, we might want to fetch to show it.
+            // Or if we are viewing the list.
+            if (msg.job.status === 'queued') scheduleFetchState();
         }
-        // if a job started running and user hasn't pinned a job, show its logs
-        if (!pinned && msg.status === 'running' && msg.job_id) {
-          openLogStream(msg.job_id, true);
-        }
-        break;
-      case 'job_files':
-        // full files snapshot pushed by backend every ~100ms if dirty
-        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
-          renderFilesList(msg.job_id, msg.files || [], msg.dirs || []);
-          const filesAreaInner = document.getElementById('files-area-inner');
-          if ((msg.files && msg.files.length > 0) || (msg.dirs && msg.dirs.length > 0)) {
-            filesAreaInner.classList.add('expanded');
-          } else if (selectedJob && selectedJob.status === 'running') {
-            filesAreaInner.classList.remove('expanded');
-          }
-        }
-        break;
-      case 'files_update':
-        // payload contains files and dirs arrays
-        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
-          renderFilesList(msg.job_id, msg.files || [], msg.dirs || []);
-          // auto-expand files area when first file appears
-          const filesAreaInner = document.getElementById('files-area-inner');
-          if ((msg.files && msg.files.length > 0) || (msg.dirs && msg.dirs.length > 0)) {
-            filesAreaInner.classList.add('expanded');
-          } else if (selectedJob && selectedJob.status === 'running') {
-            filesAreaInner.classList.remove('expanded');
-          }
-        }
-        break;
-      case 'files_update_partial':
-        // partial: either file or dir; if file object is provided update in-place
-        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
-          if (msg.file) {
-            // msg.file may be an object with path/size_bytes or a simple string path
-            const f = msg.file;
-            if (typeof f === 'object' && f.path) {
-              // try to update existing row by path; otherwise append a new entry
-              const filesList = document.getElementById('files-list');
-              const basename = f.path.split('/').pop();
-              let found = null;
-              Array.from(filesList.querySelectorAll('.file-item')).forEach(row => {
-                if (row.dataset && row.dataset.path === f.path) found = row;
-              });
-              if (found) {
-                const sizeSpan = found.querySelector('span[data-size]');
-                if (sizeSpan) sizeSpan.textContent = '(' + humanSize(f.size_bytes) + ')';
-              } else {
-                // append a minimal row for this file
-                const row = document.createElement('div'); row.className = 'file-item'; row.dataset.path = f.path;
-                const left = document.createElement('div'); left.className = 'file-name';
-                left.innerHTML = `<a href='/api/jobs/${msg.job_id}/files/${f.id}'>${basename}</a> <span data-size style='color:var(--muted)'>(${humanSize(f.size_bytes)})</span>`;
-                row.appendChild(left);
-                filesList.appendChild(row);
-              }
-            } else {
-              // fallback to debounced full fetch when we only have a path string
-              scheduleFetchJobFiles(msg.job_id);
+
+        // Auto-select rules
+        if (msg.job.status === 'queued') {
+            if (!pinned && !selectedJob) {
+               selectJob(msg.job);
             }
-          } else if (msg.dir) {
-            // for dir partial we refresh snapshot (debounced)
-            scheduleFetchJobFiles(msg.job_id);
-          }
+        }
+        
+        // If a job started running and user hasn't pinned a job, show its logs
+        if (!pinned && msg.job.status === 'running') {
+            if (!selectedJob || selectedJob.id !== msg.job.id) {
+                selectJob(msg.job, false);
+            }
         }
         break;
+
       case 'jobs_archived':
         await fetchState();
         break;
+        
+      case 'job_log':
+        // Append log line if this job is selected
+        if (selectedJob && selectedJob.id === msg.job_id) {
+           pre.textContent += msg.line + "\n";
+           const logView = document.getElementById('log-view');
+           logView.scrollTop = logView.scrollHeight;
+        }
+        break;
+
       default:
         // ignore unknown
     }
+  }
+
+  let fetchStateDebounce = null;
+  function scheduleFetchState() {
+      if (fetchStateDebounce) return;
+      fetchStateDebounce = setTimeout(() => { fetchState(); fetchStateDebounce = null; }, 1000);
   }
 
   function collapseConsole() {
@@ -550,6 +543,7 @@ https://example.com/file2.mp3"></textarea>
     jobs.forEach(job => {
       const div = document.createElement('div');
       div.className = 'job-item';
+      div.id = 'job-item-' + job.id; // Add ID for direct updates
       if (selectedJob && job.id === selectedJob.id) div.classList.add('selected');
       if (job.status === 'running') div.classList.add('running');
 
@@ -589,9 +583,10 @@ https://example.com/file2.mp3"></textarea>
     document.getElementById('files-job-title').textContent = job.title || ('#' + job.id);
     await fetchJobFiles(job.id);
     await fetchJobLogs(job.id);
-    openLogStream(job.id, false); // don't clear persisted logs
     // Ensure console is open for running or failed jobs
     if (job && job.status === 'running') expandConsole();
+    // Open console for failed jobs too, as requested
+    if (job && job.status === 'failed') expandConsole();
   }
 
   function showFilesPane() {
@@ -617,9 +612,8 @@ https://example.com/file2.mp3"></textarea>
       }
       const data = await res.json();
 
-      const fcount = (data.files||[]).length;
-      const dcount = (data.dirs||[]).length;
-      const total = fcount + dcount;
+      const files = data.files || [];
+      const total = files.length;
 
       // Files area visibility rules:
       // - If job is running and total==0 -> hide files area (it will expand when first file appears)
@@ -634,45 +628,8 @@ https://example.com/file2.mp3"></textarea>
         filesAreaInner.classList.add('expanded');
       }
 
-      renderFilesList(id, data.files, data.dirs);
-
-      const actionDownload = document.getElementById('action-download');
-      if (total === 0) {
-        actionDownload.style.display = 'none';
-      } else if (fcount === 1 && dcount === 0) {
-        actionDownload.style.display = '';
-        actionDownload.textContent = 'Download';
-        actionDownload.onclick = () => { window.location = '/api/jobs/' + id + '/files/' + data.files[0].id };
-      } else {
-        actionDownload.style.display = '';
-        actionDownload.textContent = 'Download ZIP';
-        actionDownload.onclick = () => { window.location = '/api/jobs/' + id + '/zip' };
-      }
-
-      // show retry only when job failed
-      const actionRetry = document.getElementById('action-retry');
-      if (selectedJob && selectedJob.status === 'failed') {
-        actionRetry.style.display = '';
-      } else {
-        actionRetry.style.display = 'none';
-      }
-      // archive visibility
-      const actionArchive = document.getElementById('action-archive');
-      if (selectedJob && selectedJob.archived) {
-        actionArchive.style.display = 'none';
-      } else {
-        actionArchive.style.display = '';
-      }
-      // delete styling unchanged; confirmation handled elsewhere
-      // set original url open-source button
-      if (selectedJob && selectedJob.original_url) {
-        const btn = document.getElementById('job-open-source');
-        btn.onclick = () => window.open(selectedJob.original_url, '_blank');
-        btn.style.display = '';
-      } else {
-        const btn = document.getElementById('job-open-source');
-        btn.style.display = 'none';
-      }
+      renderFilesList(id, files);
+      updateJobActions(selectedJob, total);
     } catch (err) {
       console.error('fetchJobFiles', err);
     }
@@ -686,65 +643,139 @@ https://example.com/file2.mp3"></textarea>
       const data = await res.json();
       const pre = document.getElementById('log-pre');
       pre.textContent = '';
-      data.logs.forEach(l => { pre.textContent += l.line + '\n'; });
+      if (data.logs && Array.isArray(data.logs)) {
+        data.logs.forEach(l => { pre.textContent += l.line + '
+      }
     } catch (err) {
       console.error('fetchJobLogs', err);
     }
   }
 
-  function renderFilesList(jobId, files, dirs) {
+  function updateJobActions(job, fileCount) {
+      if (!job) return;
+      const actionDownload = document.getElementById('action-download');
+      const actionRetry = document.getElementById('action-retry');
+      const actionArchive = document.getElementById('action-archive');
+      const openSource = document.getElementById('job-open-source');
+      
+      if (fileCount === 0) {
+        actionDownload.style.display = 'none';
+      } else if (fileCount === 1) {
+        actionDownload.style.display = '';
+        actionDownload.textContent = 'Download';
+        actionDownload.onclick = () => { fetch('/api/jobs/' + job.id + '/files').then(r=>r.json()).then(d=>{ if(d.files && d.files[0]) window.location = '/api/jobs/' + job.id + '/files/' + d.files[0].id; }) };
+      } else {
+        actionDownload.style.display = '';
+        actionDownload.textContent = 'Download ZIP';
+        actionDownload.onclick = () => { window.location = '/api/jobs/' + job.id + '/zip' };
+      }
+      
+      if (job.status === 'failed') actionRetry.style.display = '';
+      else actionRetry.style.display = 'none';
+      
+      if (job.archived) actionArchive.style.display = 'none';
+      else actionArchive.style.display = '';
+      
+      if (job.original_url) {
+        openSource.onclick = () => window.open(job.original_url, '_blank');
+        openSource.style.display = '';
+      } else {
+        openSource.style.display = 'none';
+      }
+  }
+
+  function renderFilesList(jobId, files) {
     const el = document.getElementById('files-list');
     el.innerHTML = '';
-    if ((!files || files.length === 0) && (!dirs || dirs.length === 0)) {
+    if (!files || files.length === 0) { 
       el.innerHTML = '<em>No files recorded for this job.</em>';
       document.getElementById('action-download').style.display = 'none';
       return;
     }
-
-    // Group files by deepest-owned dir (use dirs array as the set of deepest owned dirs)
-    const dirSet = new Set((dirs || []).map(d => d.path));
-    function findGroup(path) {
-      let best = '';
-      dirSet.forEach(dp => {
-        if (path === dp || path.startsWith(dp + '/')) {
-          if (dp.length > best.length) best = dp;
-        }
-      });
-      return best;
-    }
-
-    const groups = {};
-    (files || []).forEach(f => {
-      const groupDir = findGroup(f.path);
-      const groupName = groupDir ? groupDir.split('/').pop() : '';
-      if (!groups[groupName]) groups[groupName] = [];
-      groups[groupName].push(f);
-    });
-
-    const groupNames = Object.keys(groups);
-    groupNames.sort((a, b) => {
-      if (!a) return 1;
-      if (!b) return -1;
-      return a.localeCompare(b);
-    });
-
-    groupNames.forEach(g => {
-      const filesInGroup = groups[g].slice().sort((a, b) => {
-        const an = a.path.split('/').pop().toLowerCase();
-        const bn = b.path.split('/').pop().toLowerCase();
-        return an.localeCompare(bn);
-      });
-      if (g) {
-        const hdr = document.createElement('div');
-        hdr.style.fontWeight = '600'; hdr.style.margin = '0.4rem 0 0.2rem 0'; hdr.textContent = g;
-        el.appendChild(hdr);
-      }
-      filesInGroup.forEach(f => {
+    
+    // Grouping logic:
+    // 1. If only 1 file, show it directly (basename) without header.
+    // 2. If multiple files: 
+    //    a. Find common folder prefix. 
+    //    b. If prefix is root or empty, list files.
+    //    c. List files relative to that prefix.
+    
+    if (files.length === 1) {
+        const f = files[0];
         const row = document.createElement('div'); row.className = 'file-item';
         const left = document.createElement('div'); left.className = 'file-name';
-        left.innerHTML = `<a href='/api/jobs/${jobId}/files/${f.id}'>${f.path.split('/').pop()}</a> <span style='color:var(--muted)'>(${humanSize(f.size_bytes)})</span>`;
+        const basename = f.path.split('/').pop();
+        left.innerHTML = `<a href='/api/jobs/${jobId}/files/${f.id}'>${basename}</a> <span style='color:var(--muted)'>(${humanSize(f.size_bytes)})</span>`;
         row.appendChild(left); el.appendChild(row);
-      });
+        return;
+    }
+    
+    // Find common directory prefix
+    // All paths start with /
+    // /Albums/Artist/Song1.flac
+    // /Albums/Artist/Song2.flac
+    // Common dir: /Albums/Artist
+    
+    const paths = files.map(f => f.path.split('/').slice(0, -1).join('/')); // get dirs
+    
+    // Check if all files are in the SAME directory
+    const firstDir = paths[0];
+    const allSameDir = paths.every(p => p === firstDir);
+    
+    let commonPrefix = '';
+    if (allSameDir) {
+        commonPrefix = firstDir;
+    } else {
+        // If mixed directories, find common ancestor
+        const splitPaths = files.map(f => f.path.split('/').filter(x => x));
+        if (splitPaths.length > 0) {
+             let prefix = splitPaths[0].slice(0, -1); // start with dir of first file
+             for (let i = 1; i < splitPaths.length; i++) {
+                 const current = splitPaths[i];
+                 let j = 0;
+                 while (j < prefix.length && j < current.length - 1 && prefix[j] === current[j]) {
+                     j++;
+                 }
+                 prefix = prefix.slice(0, j);
+             }
+             if (prefix.length > 0) commonPrefix = '/' + prefix.join('/');
+        }
+    }
+    
+    
+    let displayPrefix = commonPrefix;
+    if (displayPrefix === '/') displayPrefix = ''; // Don't show '/' as header
+    
+    if (displayPrefix) {
+        const hdr = document.createElement('div');
+        hdr.style.fontWeight = '600'; 
+        hdr.style.margin = '0.4rem 0 0.2rem 0';
+        // e.g. /Albums/AlbumName -> Albums/AlbumName
+        hdr.textContent = displayPrefix.replace(/^\//, ''); 
+        el.appendChild(hdr);
+    }
+    
+    files.forEach(f => {
+        const row = document.createElement('div'); 
+        row.className = 'file-item';
+        // Indent if we have a header
+        if (displayPrefix) {
+            row.style.paddingLeft = '1rem';
+        }
+        
+        const left = document.createElement('div'); 
+        left.className = 'file-name';
+        // Show basename if it's inside the common prefix, or full relative path if deeper?
+        // Simple: Just show basename if we are in the common dir, otherwise relative
+        let displayName = f.path.split('/').pop();
+        if (displayPrefix && !f.path.startsWith(displayPrefix + '/')) {
+            // should not happen if common prefix logic is correct for all files
+            displayName = f.path.split('/').pop();
+        }
+        
+        left.innerHTML = `<a href='/api/jobs/${jobId}/files/${f.id}'>${displayName}</a> <span style='color:var(--muted)'>(${humanSize(f.size_bytes)})</span>`;
+        row.appendChild(left); 
+        el.appendChild(row);
     });
   }
 
@@ -766,27 +797,6 @@ https://example.com/file2.mp3"></textarea>
     await fetchState();
   }
 
-  async function openLogStream(jobId, clearBefore = false) {
-    if (currentLogSocket) currentLogSocket.close();
-    const pre = document.getElementById('log-pre');
-    // always fetch persisted logs first so new tabs show history
-    await fetchJobLogs(jobId);
-    if (clearBefore) pre.textContent = '';
-
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(proto + '//' + location.host + '/ws/logs?id=' + jobId);
-    currentLogSocket = ws;
-
-    ws.onmessage = (ev) => {
-      pre.textContent += ev.data + '\n';
-      const logView = document.getElementById('log-view');
-      logView.scrollTop = logView.scrollHeight;
-    };
-    ws.onclose = () => {
-      if (currentLogSocket === ws) currentLogSocket = null;
-    };
-  }
-
   document.getElementById('new-job-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const form = ev.target;
@@ -794,19 +804,27 @@ https://example.com/file2.mp3"></textarea>
     const resp = await fetch('/api/jobs', { method: 'POST', body: fd });
     const data = await resp.json().catch(() => null);
     form.reset();
+    
+    // If no job is currently selected or running, select the new one
+    if (data && (data.id || (data.ids && data.ids[0]))) {
+        let newId = data.id || data.ids[0];
+        // We don't have the job object yet, but we can wait for the snapshot or fetch it.
+    }
     await fetchState();
     // If a job was created and there's no running job, auto-select the created job
     try {
-      const curRes = await fetch('/api/current');
-      const cur = await curRes.json();
-      if ((!cur.current_job || cur.current_job === 0) && data) {
+      if (data) {
         let id = data.id || (data.ids && data.ids[0]);
         if (id) {
           // fetch jobs list to find the job object
           const r = await fetch('/api/jobs');
           const jobs = await r.json();
           const found = jobs.find(j => j.id === id);
-          if (found && !selectedJob) {
+          // Always select the new job if nothing is running, even if something else was selected
+          // Actually, if a job is running, we might NOT want to switch.
+          // Requirement: "if there's no job already running, switch to it"
+          const anyRunning = jobs.some(j => j.status === 'running');
+          if (found && !anyRunning) {
             selectJob(found);
           }
         }
@@ -846,7 +864,7 @@ https://example.com/file2.mp3"></textarea>
   async function start() {
     await fetchState();
     initStateSocket();
-    // show logs for current running job by default
+    // show logs for current running job by default or if we just reloaded page
     await fetchCurrentAndShowLogs();
   }
 
@@ -857,7 +875,11 @@ https://example.com/file2.mp3"></textarea>
       const d = await r.json();
       if (d.current_job && d.current_job !== 0) {
         if (!pinned) {
-          openLogStream(d.current_job, true);
+            // Auto-select running job
+            const r2 = await fetch('/api/jobs');
+            const jobs = await r2.json();
+            const found = jobs.find(j => j.id === d.current_job);
+            if (found) selectJob(found, false);
         }
       } else {
         // no current job

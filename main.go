@@ -113,7 +113,6 @@ func main() {
 	mux.HandleFunc("/api/jobs", srv.handleJobs)
 	mux.HandleFunc("/api/jobs/clear", srv.handleClearJobs)
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
-	mux.HandleFunc("/ws/logs", srv.handleLogsWS)
 	mux.HandleFunc("/ws/state", srv.handleStateWS)
 	mux.HandleFunc("/api/current", srv.handleCurrent)
 
@@ -216,7 +215,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			ids = append(ids, jid)
 			s.Mgr.Queue <- jid
 			// broadcast queued job per-job
-			s.Mgr.BroadcastState(jobs.JobUpdateEvent{Type: "job_update", JobID: jid, Status: string(store.StatusQueued)})
+			s.Mgr.BroadcastJobSnapshot(jid)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -268,7 +267,7 @@ func (s *Server) handleClearJobs(w http.ResponseWriter, r *http.Request) {
 	// delete logs for archived jobs
 	_ = store.DeleteLogsForArchivedJobs(s.DB)
 	// broadcast state change that jobs were archived
-	s.Mgr.BroadcastState(jobs.JobsArchivedEvent{Type: "jobs_archived"})
+	s.Mgr.BroadcastState(map[string]string{"type": "jobs_archived"})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -352,7 +351,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		// delete logs for this job
 		_ = store.DeleteJobLogs(s.DB, id)
 		// broadcast state change
-		s.Mgr.BroadcastState(jobs.JobUpdateEvent{Type: "job_update", JobID: id, Status: "archived"})
+		s.Mgr.BroadcastJobSnapshot(id)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	case "delete":
@@ -380,7 +379,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// broadcast state change
-		s.Mgr.BroadcastState(jobs.JobUpdateEvent{Type: "job_update", JobID: id, Status: "archived"})
+		s.Mgr.BroadcastJobSnapshot(id)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	default:
@@ -582,34 +581,6 @@ func (s *Server) handleDeleteFiles(w http.ResponseWriter, r *http.Request, jobID
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) handleLogsWS(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		http.Error(w, "missing id", 400)
-		return
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", 400)
-		return
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	ch := s.Mgr.SubscribeLogs(id)
-	defer s.Mgr.UnsubscribeLogs(id, ch)
-
-	for line := range ch {
-		if err := conn.WriteMessage(websocket.TextMessage, []byte(line)); err != nil {
-			return
-		}
-	}
 }
 
 // State websocket: broadcasts job/file metadata updates to all clients
