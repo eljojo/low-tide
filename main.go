@@ -275,13 +275,6 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			s.handleDownloadArtifact(w, r, id, fid)
 			return
 		}
-	case "logs":
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		s.handleListJobLogs(w, r, id)
-		return
 	case "archive":
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -396,39 +389,6 @@ func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(j)
-}
-
-// List persisted logs for a job
-func (s *Server) handleListJobLogs(w http.ResponseWriter, r *http.Request, jobID int64) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	j, err := store.GetJob(s.DB, jobID)
-	if err != nil {
-		http.Error(w, "job not found", 404)
-		return
-	}
-
-	logs := j.Logs
-
-	// append in-memory logs if any
-	if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
-		var lines []string
-		if logs != "" {
-			lines = append(lines, logs)
-		}
-		for _, entry := range buf {
-			lines = append(lines, entry.Line)
-		}
-		logs = strings.Join(lines, chars.NewLine)
-	}
-
-	type resp struct {
-		Logs string `json:"logs"`
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp{Logs: logs})
 }
 
 // Download a single file
