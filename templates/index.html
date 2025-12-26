@@ -2,105 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Low Tide</title>
+<title>🌊 Low Tide</title>
 <link rel="stylesheet" href="/static/css/bundle.css">
 </head>
 <body>
-<header>
-  <div class="blob"></div>
-  <a href="/" style="text-decoration: none; color: inherit; cursor: pointer;">
-    <h1 style="font-size: 1.2rem; margin: 0;">Low Tide</h1>
-  </a>
-  <div id="global-indicator"></div>
-</header>
-
-<main>
-  <section class="card">
-    <h2>New Download Job</h2>
-    <form id="new-job-form">
-      <label for="app">Downloader</label>
-      <select id="app" name="app_id">
-        <option value="auto">Auto-detect</option>
-        {{range .}}
-        <option value="{{.ID}}">{{.Name}}</option>
-        {{end}}
-      </select>
-
-      <label for="urls">URLs (one per line or space-separated)</label>
-      <textarea id="urls" name="urls" rows="4" placeholder="https://example.com/file1.mp3
-https://example.com/file2.mp3"></textarea>
-
-      <div class="row" style="justify-content: flex-end; margin-top: 0.8rem;">
-        <button type="submit">Queue Job</button>
-      </div>
-    </form>
-  </section>
-
-  <section class="card" style="grid-column: 2;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 style="margin:0;">Jobs</h2>
-      <div>
-        <button class="secondary" id="toggle-archived">▸</button>
-      </div>
-    </div>
-    <h3 style="color:var(--muted); margin:0.6rem 0 0.2rem 0;">Active</h3>
-    <div class="jobs-list monospace" id="jobs-list"></div>
-
-    <div id="archived-section" style="display:none; margin-top:0.8rem;">
-      <h3 style="color:var(--muted); margin:0.6rem 0 0.2rem 0;">Archived</h3>
-      <div class="jobs-list monospace" id="archived-list"></div>
-    </div>
-  </section>
-
-  <!-- Chosen job status: spans full width underneath form + job list -->
-  <section class="card" id="files-pane" style="display:none; grid-column: 1 / -1; margin-top: 1.2rem;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 style="margin:0;"><span id="files-job-title">(none)</span></h2>
-      <!-- Close button removed as requested -->
-    </div>
-
-    <div style="margin-top:0.6rem; display:flex; gap:1.2rem; align-items:flex-start;">
-      <div style="flex:1;">
-        <div class="row" id="job-actions-row" style="margin-bottom:0.5rem;">
-          <button class="secondary" id="action-retry" style="display:none;">Retry</button>
-          <button class="secondary" id="action-download">Download ZIP</button>
-          <button class="secondary" id="job-open-source" style="order:0;">Open original</button>
-          <button class="secondary" id="action-archive">Archive</button>
-          <button class="secondary danger" id="action-delete">Delete</button>
-        </div>
-
-        <div id="files-area" class="files-area">
-          <div id="files-area-inner">
-            <div class="files-list monospace" id="files-list"><em>Select a job to view files.</em></div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-    <div style="margin-top:1rem;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0 0 0.4rem 0; color:var(--muted);">Logs</h3>
-        <div>
-          <button class="secondary" id="toggle-console">Expand</button>
-        </div>
-      </div>
-      <div id="console-area">
-        <div id="console-inner">
-          <div id="log-view" class="monospace"><pre id="log-pre">No job selected.</pre></div>
-        </div>
-      </div>
-    </div>
-
-  </section>
-</main>
-
-<footer>
-  <span>One-at-a-time downloads</span>
-  <span>Go · WebSocket · SQLite · 90s slime</span>
-</footer>
-
+<script>
+  window.CONFIG = { apps: {{.AppsJSON}} };
+</script>
+<div id="app"></div>
 <script src="/static/js/bundle.js"></script>
 </body>
 </html>

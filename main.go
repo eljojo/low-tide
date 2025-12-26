@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -24,6 +25,8 @@ import (
 
 //go:embed templates/*.html static/*
 var assets embed.FS
+
+var indexTmpl = template.Must(template.ParseFS(assets, "templates/index.html"))
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -86,13 +89,26 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := assets.ReadFile("templates/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
+
+	type AppInfo struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
 	}
+	var apps []AppInfo
+	for _, app := range s.Cfg.Apps {
+		apps = append(apps, AppInfo{ID: app.ID, Name: app.Name})
+	}
+
+	appsJSON, _ := json.Marshal(apps)
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(data)
+	err := indexTmpl.Execute(w, map[string]any{
+		"AppsJSON": template.JS(appsJSON),
+	})
+	if err != nil {
+		log.Printf("execute template: %v", err)
+		http.Error(w, err.Error(), 500)
+	}
 }
 
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
