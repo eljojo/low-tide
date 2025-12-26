@@ -2,30 +2,27 @@ package main
 
 import (
 	"archive/zip"
-	"fmt"
 	"io"
 	"log"
-	"mime"
 	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
+
+	"mime"
+	"net/url"
+	"path/filepath"
+
+	"bufio"
 )
 
-// helper to create a safe Content-Disposition header with both filename and filename*
 func contentDisposition(filename string) string {
 	base := filepath.Base(filename)
-	// sanitize simple problematic characters
-	safe := strings.Map(func(r rune) rune {
-		if r == '\\' || r == '"' || r == '\n' || r == '\r' || r == '/' || r == '\x00' {
-			return '_'
-		}
-		return r
-	}, base)
-	escaped := url.PathEscape(base)
-	return fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", safe, escaped)
+
+	return mime.FormatMediaType("attachment", map[string]string{
+		"filename":  base,                             // quoted-string
+		"filename*": "UTF-8''" + url.PathEscape(base), // RFC 5987
+	})
 }
 
 func setDownloadHeaders(w http.ResponseWriter, filename string) {
@@ -47,30 +44,25 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// TODO: This needs to be updated to add URL validation/sanitization.
+// this will be important to prevent injection attacks
 func splitURLs(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
-	lines := strings.Split(s, "\n")
-	var out []string
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		out = append(out, fields...)
-	}
-	uniq := make([]string, 0, len(out))
+	scanner := bufio.NewScanner(strings.NewReader(s))
+
 	seen := map[string]struct{}{}
-	for _, u := range out {
-		if u == "" {
-			continue
+	out := []string{}
+
+	for scanner.Scan() {
+		for _, f := range strings.Fields(scanner.Text()) {
+			if _, ok := seen[f]; ok {
+				continue
+			}
+			seen[f] = struct{}{}
+			out = append(out, f)
 		}
-		if _, ok := seen[u]; ok {
-			continue
-		}
-		seen[u] = struct{}{}
-		uniq = append(uniq, u)
 	}
-	return uniq
+
+	return out
 }
 
 // toRelPath trims the watch root prefix and returns a leading slash path.
