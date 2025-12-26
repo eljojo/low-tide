@@ -1,0 +1,24 @@
+{
+  "name": "low-tide",
+  "version": "1.0.0",
+  "description": "Low Tide =========",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eljojo/low-tide.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eljojo/low-tide/issues"
+  },
+  "homepage": "https://github.com/eljojo/low-tide#readme",
+  "devDependencies": {
+    "esbuild": "^0.27.2",
+    "typescript": "^5.9.3"
+  }
+}

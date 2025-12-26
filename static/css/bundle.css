@@ -1,3 +1,4 @@
+/* frontend/css/main.css */
 :root {
   --bg: #041b26;
   --fg: #fef4e3;
@@ -7,10 +8,17 @@
   --card-bg: #0c2835;
   --danger: #ff4b5c;
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   background: var(--bg);
   color: var(--fg);
   display: flex;
@@ -19,7 +27,11 @@ body {
 }
 header {
   padding: 1rem 1.5rem;
-  background: linear-gradient(90deg, #ff7f1f, #ffca1f);
+  background:
+    linear-gradient(
+      90deg,
+      #ff7f1f,
+      #ffca1f);
   color: #041b26;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -36,20 +48,28 @@ header .blob {
   border-radius: 60% 40% 40% 70% / 50% 60% 40% 50%;
 }
 #global-indicator {
-  display: none; /* hidden by default */
+  display: none;
   width: 14px;
   height: 14px;
   background: #021016;
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0,0,0,0.6);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
   animation: pulse-global 1.8s infinite ease-in-out;
 }
 @keyframes pulse-global {
-  0% { transform: scale(0.9); opacity: 0.7; }
-  50% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0.7; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
 }
-
 main {
   flex: 1;
   padding: 1.5rem;
@@ -65,7 +85,7 @@ main {
   background: var(--card-bg);
   border-radius: 14px;
   padding: 1rem 1.2rem;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 14px 30px rgba(0,0,0,0.45);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 14px 30px rgba(0, 0, 0, 0.45);
 }
 h2 {
   font-size: 0.95rem;
@@ -81,7 +101,9 @@ label {
   margin-bottom: 0.25rem;
   color: var(--muted);
 }
-textarea, input, select {
+textarea,
+input,
+select {
   width: 100%;
   background: #021016;
   border: 1px solid #163445;
@@ -92,7 +114,9 @@ textarea, input, select {
   font-size: 0.86rem;
   resize: vertical;
 }
-textarea:focus, input:focus, select:focus {
+textarea:focus,
+input:focus,
+select:focus {
   outline: 1px solid var(--accent2);
   border-color: var(--accent2);
 }
@@ -107,16 +131,19 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.1s ease, background 0.15s ease;
-  box-shadow: 0 4px 0 rgba(0,0,0,0.35);
+  transition:
+    transform 0.05s ease,
+    box-shadow 0.1s ease,
+    background 0.15s ease;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
 }
 button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 0 rgba(0,0,0,0.45);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
 }
 button:active {
   transform: translateY(1px);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.45);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
 }
 button.secondary {
   background: #021016;
@@ -125,11 +152,10 @@ button.secondary {
   border: 1px solid #30475e;
   box-shadow: none;
 }
-/* danger defaults to neutral and shows red on hover */
 button.danger {
   background: transparent;
   color: var(--fg);
-  border: 1px solid rgba(255,255,255,0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 button.danger:hover {
   background: var(--danger);
@@ -157,11 +183,14 @@ button.danger:hover {
   padding: 0.45rem 0.5rem;
   border-radius: 10px;
   background: rgba(2, 16, 22, 0.7);
-  border: 1px solid rgba(255,255,255,0.03);
+  border: 1px solid rgba(255, 255, 255, 0.03);
   margin-bottom: 0.3rem;
   cursor: pointer;
 }
-.job-item.selected { box-shadow: 0 0 0 2px rgba(0,192,163,0.12); background: rgba(0,192,163,0.05); }
+.job-item.selected {
+  box-shadow: 0 0 0 2px rgba(0, 192, 163, 0.12);
+  background: rgba(0, 192, 163, 0.05);
+}
 .job-header {
   display: flex;
   justify-content: space-between;
@@ -175,33 +204,74 @@ button.danger:hover {
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
-.status-queued { background: rgba(0,192,163,0.15); color: var(--accent2); }
-.status-running { 
-  background: rgba(0,170,255,0.12); color: #73d1ff; 
+.status-queued {
+  background: rgba(0, 192, 163, 0.15);
+  color: var(--accent2);
+}
+.status-running {
+  background: rgba(0, 170, 255, 0.12);
+  color: #73d1ff;
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
-@keyframes pulse { 0% { transform: translateY(-50%) scale(0.9); opacity:0.7 } 50% { transform: translateY(-50%) scale(1.1); opacity:1 } 100% { transform: translateY(-50%) scale(0.9); opacity:0.7 } }
-.status-success { background: rgba(0,192,163,0.2); color: #54f29b; }
-.status-failed  { background: rgba(255,75,92,0.2); color: #ff9aa6; }
-
+@keyframes pulse {
+  0% {
+    transform: translateY(-50%) scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-50%) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-50%) scale(0.9);
+    opacity: 0.7;
+  }
+}
+.status-success {
+  background: rgba(0, 192, 163, 0.2);
+  color: #54f29b;
+}
+.status-failed {
+  background: rgba(255, 75, 92, 0.2);
+  color: #ff9aa6;
+}
 .job-item .indicator {
   display: inline-block;
-  width: 8px; height: 8px; border-radius: 50%;
-  background: rgba(115,209,255,0.9);
-  box-shadow: 0 0 8px rgba(115,209,255,0.8);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(115, 209, 255, 0.9);
+  box-shadow: 0 0 8px rgba(115, 209, 255, 0.8);
   animation: pulse-local 1.6s infinite;
 }
-@keyframes pulse-local { 0% { opacity:0.7 } 50% { opacity:1 } 100% { opacity:0.7 } }
-
+@keyframes pulse-local {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
+}
 .job-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
 }
 .monospace {
-  font-family: "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    "JetBrains Mono",
+    ui-monospace,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
 }
 #log-view {
   background: #021016;
@@ -216,20 +286,63 @@ button.danger:hover {
   margin: 0;
   white-space: pre-wrap;
 }
-.files-list { max-height: 36vh; overflow-y: auto; margin-top: 0.5rem; }
-/* files-area collapse animation (CSS-only slide down/up) */
-.files-area { overflow: hidden; }
-#files-area-inner { transition: max-height 260ms cubic-bezier(.25,.8,.25,1), opacity 240ms ease, transform 260ms cubic-bezier(.25,.8,.25,1); max-height: 0; opacity: 0; transform: translateY(-6px); }
-#files-area-inner.expanded { max-height: 800px; opacity: 1; transform: translateY(0); }
-.file-item { display:flex; justify-content:space-between; padding:0.4rem; border-radius:8px; background:rgba(2,16,22,0.6); margin-bottom:0.25rem; }
-.file-name { font-size:0.9rem; }
-.files-list a { color: var(--accent2); text-decoration: none; }
-.files-list a:visited { color: rgba(0,192,163,0.8); }
-
-/* console collapse animation */
-#console-area { overflow: hidden; }
-#console-inner { transition: max-height 260ms cubic-bezier(.25,.8,.25,1), opacity 200ms ease, transform 260ms cubic-bezier(.25,.8,.25,1); max-height: 0; opacity: 0; transform: translateY(-6px); }
-#console-inner.expanded { max-height: 800px; opacity: 1; transform: translateY(0); }
+.files-list {
+  max-height: 36vh;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+}
+.files-area {
+  overflow: hidden;
+}
+#files-area-inner {
+  transition:
+    max-height 260ms cubic-bezier(.25, .8, .25, 1),
+    opacity 240ms ease,
+    transform 260ms cubic-bezier(.25, .8, .25, 1);
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+}
+#files-area-inner.expanded {
+  max-height: 800px;
+  opacity: 1;
+  transform: translateY(0);
+}
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem;
+  border-radius: 8px;
+  background: rgba(2, 16, 22, 0.6);
+  margin-bottom: 0.25rem;
+}
+.file-name {
+  font-size: 0.9rem;
+}
+.files-list a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+.files-list a:visited {
+  color: rgba(0, 192, 163, 0.8);
+}
+#console-area {
+  overflow: hidden;
+}
+#console-inner {
+  transition:
+    max-height 260ms cubic-bezier(.25, .8, .25, 1),
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(.25, .8, .25, 1);
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+}
+#console-inner.expanded {
+  max-height: 800px;
+  opacity: 1;
+  transform: translateY(0);
+}
 footer {
   padding: 0.6rem 1.5rem;
   font-size: 0.7rem;
