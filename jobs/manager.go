@@ -253,15 +253,22 @@ func (m *Manager) handleFileEvent(path string) {
 	}
 	info, err := os.Stat(absPath)
 	if err != nil {
-		return
-	}
-
-	if info.IsDir() {
-		_ = addRecursiveWatch(m.Watcher, absPath)
+		// Can happen if file is deleted immediately after create
 		return
 	}
 
 	jobID := m.CurrentJobID()
+
+	if info.IsDir() {
+		_ = addRecursiveWatch(m.Watcher, absPath)
+		// If a job is running, scan this new directory immediately to close the race condition
+		// where files are created before the watch is fully active.
+		if jobID != 0 {
+			go m.scanSiblings(jobID, absPath)
+		}
+		return
+	}
+
 	if jobID == 0 {
 		return
 	}
@@ -279,7 +286,6 @@ func (m *Manager) handleFileEvent(path string) {
 	m.markDirty(jobID)
 }
 
-//
 // For running jobs we remove from the current job immediately. If no job is
 // running, we best-effort remove the path across all jobs to avoid stale DB
 func (m *Manager) handleRemoveEvent(path string) {
@@ -361,20 +367,11 @@ func (m *Manager) runJob(jobID int64) {
 	m.current = ctx
 	m.mu.Unlock()
 
-	// If the title is "www.youtube.com/watch" or generic, try to set a better title from the URL initially
-	// The user complained about "www.youtube.com/watch" as a title.
-	// The default title logic is likely in the endpoint handler, but we can refine it here if it's generic.
-	// However, the best title comes from the files or the app output.
-	// Let's rely on file discovery to potentially update the title later?
-	// Or just leave it for now as the user asked for specific file grouping and title fixes.
-	// We'll focus on the file grouping in JS which was the main regression.
-
 	_ = store.UpdateJobStatusRunning(m.DB, jobID, ctx.startedAt)
 	m.markDirty(jobID)
 	m.BroadcastJobSnapshot(jobID)
 
 	// Initial resync to catch any files created between snapshotFiles (baseline) and now.
-	// This closes the race condition where a fast downloader creates files before m.current is set.
 	if err := m.resyncJobFiles(jobID, baseline); err != nil {
 		log.Printf("worker: initial resync job %d error: %v", jobID, err)
 	}
@@ -392,9 +389,6 @@ func (m *Manager) runJob(jobID int64) {
 	success := true
 	if j.URL != "" {
 		err := m.runSingleURL(ctx, appCfg, j.URL)
-		// Update title if we can deduce it (e.g. from yt-dlp output or just the URL if it was generic)
-		// But strictly speaking, the user asked for title fixes for yt-dlp.
-		// We don't have logic here to parse yt-dlp JSON output yet.
 		if err != nil {
 			success = false
 			failureMsg = err.Error()
@@ -427,11 +421,10 @@ func (m *Manager) runJob(jobID int64) {
 		}
 	}
 
-	// Heuristic to update title if it's generic (e.g. from a URL)
+	// Heuristic to update title if it's generic
 	if success && (strings.Contains(j.Title, "http") || strings.Contains(j.Title, "www.") || j.Title == "") {
 		files, _ := store.ListJobFiles(m.DB, jobID)
 		if len(files) == 1 {
-			// Use filename (without extension) as title
 			base := filepath.Base(files[0].Path)
 			ext := filepath.Ext(base)
 			newTitle := strings.TrimSuffix(base, ext)
@@ -441,11 +434,22 @@ func (m *Manager) runJob(jobID int64) {
 
 	finished := time.Now()
 	if success {
+		summaryLine := fmt.Sprintf("--- Job finished at %s: Success ---", finished.Format(time.RFC3339))
+		m.appendAndBroadcastLog(ctx, summaryLine, finished)
 		_ = store.MarkJobSuccess(m.DB, jobID, finished)
+	} else {
+		summaryLine := fmt.Sprintf("--- Job finished at %s: Failed (%s) ---", finished.Format(time.RFC3339), failureMsg)
+		m.appendAndBroadcastLog(ctx, summaryLine, finished)
 	}
 
 	m.BroadcastJobSnapshot(jobID)
 	m.clearCurrent(jobID, ctx)
+}
+
+func (m *Manager) appendAndBroadcastLog(rj *runningJob, line string, when time.Time) {
+	entry := store.LogLine{Line: line, When: when}
+	rj.appendLog(entry)
+	m.broadcastLog(rj.jobID, line)
 }
 
 func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) error {
