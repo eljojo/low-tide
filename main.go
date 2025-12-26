@@ -22,8 +22,8 @@ import (
 	"low-tide/store"
 )
 
-//go:embed templates/*.html
-var templatesFS embed.FS
+//go:embed templates/*.html static/*
+var assets embed.FS
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -71,6 +71,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.handleIndex)
+	mux.Handle("/static/", http.FileServer(http.FS(assets)))
 	mux.HandleFunc("/api/jobs", srv.handleJobs)
 	mux.HandleFunc("/api/jobs/clear", srv.handleClearJobs)
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
@@ -85,7 +86,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := templatesFS.ReadFile("templates/index.html")
+	data, err := assets.ReadFile("templates/index.html")
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
