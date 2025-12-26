@@ -195,6 +195,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			s.Mgr.Queue <- jid
 			// broadcast queued job per-job
 			s.Mgr.BroadcastJobSnapshot(jid)
+			go s.Mgr.FetchAndSaveTitle(jid, u)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -371,7 +372,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := store.DeleteJob(s.DB, id); err != nil {
 			http.Error(w, err.Error(), 500)
-			return 
+			return
 		}
 		// broadcast state change
 		s.Mgr.BroadcastJobSnapshot(id)

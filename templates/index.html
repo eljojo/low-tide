@@ -264,7 +264,7 @@ https://example.com/file2.mp3"></textarea>
   <!-- Chosen job status: spans full width underneath form + job list -->
   <section class="card" id="files-pane" style="display:none; grid-column: 1 / -1; margin-top: 1.2rem;">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 style="margin:0;">Job <span id="files-job-title">(none)</span></h2>
+      <h2 style="margin:0;"><span id="files-job-title">(none)</span></h2>
       <!-- Close button removed as requested -->
     </div>
 
@@ -273,14 +273,13 @@ https://example.com/file2.mp3"></textarea>
         <div class="row" id="job-actions-row" style="margin-bottom:0.5rem;">
           <button class="secondary" id="action-retry" style="display:none;">Retry</button>
           <button class="secondary" id="action-download">Download ZIP</button>
-          <button class="secondary" id="job-open-source" style="order:0;">Open origin</button>
+          <button class="secondary" id="job-open-source" style="order:0;">Open original</button>
           <button class="secondary" id="action-archive">Archive</button>
           <button class="secondary danger" id="action-delete">Delete</button>
         </div>
 
         <div id="files-area" class="files-area">
           <div id="files-area-inner">
-            <h3 style="margin:0 0 0.4rem 0; color:var(--muted);">Files</h3>
             <div class="files-list monospace" id="files-list"><em>Select a job to view files.</em></div>
           </div>
         </div>
