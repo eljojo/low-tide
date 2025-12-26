@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"mime"
 	"net/http"
@@ -405,11 +404,6 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 	zw := newZipWriter(w, s.Cfg.WatchDir)
 	defer zw.Close()
 
-	for _, d := range dirs {
-		if err := zw.AddDirWithRoot(d.Path); err != nil {
-			log.Printf("zip dir %s: %v", d.Path, err)
-		}
-	}
 	for _, f := range files {
 		if err := zw.AddFile(f.Path); err != nil {
 			log.Printf("zip file %s: %v", f.Path, err)
@@ -447,7 +441,7 @@ func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID
 		if err == nil {
 			logs = l
 		}
-		
+
 		// append in-memory logs if any (for running job)
 		if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
 			for _, line := range buf {
@@ -509,7 +503,7 @@ func (s *Server) handleListJobLogs(w http.ResponseWriter, r *http.Request, jobID
 	_ = json.NewEncoder(w).Encode(resp{Logs: logs})
 }
 
-// Download a single file or zip a directory
+// Download a single file
 func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, jobID int64, fid int64) {
 	// Try file
 	if f, err := store.GetJobFileByID(s.DB, fid); err == nil {
@@ -527,29 +521,6 @@ func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, 
 		setDownloadHeaders(w, f.Path)
 		http.ServeFile(w, r, f.Path)
 		return
-	}
-	// Try dir
-	// If fid corresponds to a file id, it was handled above. Otherwise, treat
-	// fid as a directory path id derived from current job files. Derive dirs from
-	// GetJobPaths and match on a synthetic dir id.
-	if _, dirs, err := store.GetJobPaths(s.DB, jobID); err == nil {
-		for _, d := range dirs {
-			if store.DirIDFromPath(d.Path) == fid {
-				rel, err := filepath.Rel(s.Cfg.WatchDir, d.Path)
-				if err != nil || strings.HasPrefix(rel, "..") {
-					http.Error(w, "invalid path", 400)
-					return
-				}
-				setDownloadHeaders(w, fmt.Sprintf("job-%d-dir-%d.zip", jobID, fid))
-				zw := newZipWriter(w, s.Cfg.WatchDir)
-				defer zw.Close()
-				if err := zw.AddDirWithRoot(d.Path); err != nil {
-					http.Error(w, err.Error(), 500)
-					return
-				}
-				return
-			}
-		}
 	}
 	http.NotFound(w, r)
 }
@@ -672,50 +643,6 @@ func (z *zipWriter) AddFile(path string) error {
 	}
 	_, err = io.Copy(w, f)
 	return err
-}
-
-// AddDirWithRoot adds the contents of dir into the archive with dir's basename
-// as the root path inside the zip (so parent folders are omitted).
-func (z *zipWriter) AddDirWithRoot(dir string) error {
-	base := filepath.Base(dir)
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.Join(base, rel)
-		header.Method = zip.Deflate
-		w, err := z.zw.CreateHeader(header)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(w, f)
-		return err
-	})
-}
-
-// AddDir is a compatibility wrapper that zips a directory using its basename as root.
-func (z *zipWriter) AddDir(dir string) error {
-	return z.AddDirWithRoot(dir)
 }
 
 func (z *zipWriter) Close() error {
