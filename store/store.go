@@ -1,0 +1,568 @@
+package store
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"hash/crc32"
+	"net/url"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+)
+
+func depth(p string) int {
+	p = filepath.Clean(p)
+	if p == string(filepath.Separator) {
+		return 0
+	}
+	return len(strings.Split(p, string(filepath.Separator)))
+}
+
+func isSubpath(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return rel != "." && !strings.HasPrefix(rel, "..")
+}
+
+func DirIDFromPath(p string) int64 {
+	// Deterministic ID derived from path so we can refer to dirs by ID
+	return int64(crc32.ChecksumIEEE([]byte(p)))
+}
+
+// JobStatus represents the lifecycle state of a job.
+type JobStatus string
+
+const (
+	StatusQueued  JobStatus = "queued"
+	StatusRunning JobStatus = "running"
+	StatusSuccess JobStatus = "success"
+	StatusFailed  JobStatus = "failed"
+)
+
+type Job struct {
+	ID           int64      `json:"id"`
+	AppID        string     `json:"app_id"`
+	URL          string     `json:"url"`
+	Status       JobStatus  `json:"status"`
+	PID          *int       `json:"pid,omitempty"`
+	ExitCode     *int       `json:"exit_code,omitempty"`
+	ErrorMessage *string    `json:"error_message,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	FinishedAt   *time.Time `json:"finished_at,omitempty"`
+	Archived     bool       `json:"archived"`
+	OriginalURL  string     `json:"original_url"`
+	Title        string     `json:"title"`
+}
+
+type JobFile struct {
+	ID        int64     `json:"id"`
+	JobID     int64     `json:"job_id"`
+	Path      string    `json:"path"`
+	SizeBytes int64     `json:"size_bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type JobDir struct {
+	ID        int64     `json:"id"`
+	JobID     int64     `json:"job_id"`
+	Path      string    `json:"path"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type JobLog struct {
+	ID    int64     `json:"id"`
+	JobID int64     `json:"job_id"`
+	Line  string    `json:"line"`
+	When  time.Time `json:"when"`
+}
+
+// LogLine represents an in-memory log entry to persist.
+type LogLine struct {
+	Line string
+	When time.Time
+}
+
+func Init(db *sql.DB) error {
+	stmts := []string{
+		`PRAGMA foreign_keys = ON;`,
+		`CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            status TEXT NOT NULL,
+            pid INTEGER,
+            exit_code INTEGER,
+            error_message TEXT,
+            created_at DATETIME NOT NULL,
+            started_at DATETIME,
+            finished_at DATETIME,
+            archived INTEGER NOT NULL DEFAULT 0,
+            original_url TEXT,
+            title TEXT
+        );`,
+		`CREATE TABLE IF NOT EXISTS job_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            path TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            created_at DATETIME NOT NULL
+        );`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_job_files_job_path ON job_files(job_id, path);`,
+		`CREATE TABLE IF NOT EXISTS job_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            line TEXT NOT NULL,
+            when_ts DATETIME NOT NULL
+        );`,
+	}
+	for _, s := range stmts {
+		if _, err := db.Exec(s); err != nil {
+			return err
+		}
+	}
+	// Ensure columns exist for older DBs
+	if err := ensureColumn(db, "jobs", "original_url", "TEXT"); err != nil {
+		return err
+	}
+	return ensureColumn(db, "jobs", "title", "TEXT")
+}
+
+func ensureColumn(db *sql.DB, table, column, colType string) error {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name string
+		var ctype string
+		var notnull int
+		var dfltValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	_, err = db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, colType))
+	return err
+}
+
+func InsertJob(db *sql.DB, appID string, url string, createdAt time.Time) (int64, error) {
+	if strings.TrimSpace(url) == "" {
+		return 0, errors.New("no url")
+	}
+	// Compute initial title from URL (host + path) so jobs show meaningful titles
+	title := url
+	if u, err := parseURLTitle(url); err == nil {
+		title = u
+	}
+	res, err := db.Exec(`INSERT INTO jobs (app_id, url, original_url, status, created_at, archived, title) VALUES (?, ?, ?, 'queued', ?, 0, ?)`, appID, url, url, createdAt, title)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func parseURLTitle(raw string) (string, error) {
+	r, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", err
+	}
+	// Host + path
+	p := r.Host + r.Path
+	if p == "" {
+		return r.Path, nil
+	}
+	// Trim trailing slash
+	p = strings.TrimSuffix(p, "/")
+	return p, nil
+}
+
+func GetJob(db *sql.DB, id int64) (*Job, error) {
+	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs WHERE id = ?`, id)
+	var j Job
+	var urlStr string
+	var status string
+	var archivedInt int
+	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title); err != nil {
+		return nil, err
+	}
+	j.Status = JobStatus(status)
+	j.Archived = archivedInt != 0
+	j.URL = urlStr
+	return &j, nil
+}
+
+func ListJobs(db *sql.DB, includeArchived bool, limit int) ([]Job, error) {
+	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
+	if includeArchived {
+		q += ` WHERE archived = 1`
+	} else {
+		q += ` WHERE archived = 0`
+	}
+	q += ` ORDER BY created_at DESC`
+	if limit > 0 {
+		q += ` LIMIT ?`
+	}
+
+	var rows *sql.Rows
+	var err error
+	if limit > 0 {
+		rows, err = db.Query(q, limit)
+	} else {
+		rows, err = db.Query(q)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Job
+	for rows.Next() {
+		var j Job
+		var urlStr string
+		var status string
+		var archivedInt int
+		if err := rows.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title); err != nil {
+			return nil, err
+		}
+		j.Status = JobStatus(status)
+		j.Archived = archivedInt != 0
+		j.URL = urlStr
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
+func UpdateJobStatusRunning(db *sql.DB, id int64, startedAt time.Time) error {
+	_, err := db.Exec(`UPDATE jobs SET status = 'running', started_at = ? WHERE id = ?`, startedAt, id)
+	return err
+}
+
+func UpdateJobPID(db *sql.DB, id int64, pid int) error {
+	_, err := db.Exec(`UPDATE jobs SET pid = ? WHERE id = ?`, pid, id)
+	return err
+}
+
+func ClearJobPID(db *sql.DB, id int64, exitCode int) error {
+	_, err := db.Exec(`UPDATE jobs SET pid = NULL, exit_code = ? WHERE id = ?`, exitCode, id)
+	return err
+}
+
+func MarkJobSuccess(db *sql.DB, id int64, finishedAt time.Time) error {
+	_, err := db.Exec(`UPDATE jobs SET status = 'success', finished_at = ? WHERE id = ?`, finishedAt, id)
+	return err
+}
+
+func MarkJobFailed(db *sql.DB, id int64, finishedAt time.Time, msg string) error {
+	_, err := db.Exec(`UPDATE jobs SET status = 'failed', finished_at = ?, error_message = ? WHERE id = ?`, finishedAt, msg, id)
+	return err
+}
+
+func ResetJobForRetry(db *sql.DB, id int64) error {
+	_, err := db.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL WHERE id=?`, id)
+	return err
+}
+
+func ArchiveFinishedJobs(db *sql.DB) error {
+	_, err := db.Exec(`UPDATE jobs SET archived = 1 WHERE archived = 0 AND status IN ('success','failed')`)
+	return err
+}
+
+func ArchiveJob(db *sql.DB, id int64) error {
+	_, err := db.Exec(`UPDATE jobs SET archived = 1 WHERE id = ?`, id)
+	return err
+}
+
+func UpdateJobTitle(db *sql.DB, id int64, title string) error {
+	_, err := db.Exec(`UPDATE jobs SET title = ? WHERE id = ?`, title, id)
+	return err
+}
+
+func InsertJobFile(db *sql.DB, jobID int64, path string, size int64, createdAt time.Time) error {
+	// Use UPSERT semantics so concurrent inserts by path/job coalesce atomically.
+	_, err := db.Exec(`INSERT INTO job_files (job_id, path, size_bytes, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(job_id, path) DO UPDATE SET size_bytes = excluded.size_bytes, created_at = excluded.created_at`, jobID, path, size, createdAt)
+	return err
+}
+
+func DeleteJobFileByPath(db *sql.DB, jobID int64, path string) error {
+	_, err := db.Exec(`DELETE FROM job_files WHERE job_id = ? AND path = ?`, jobID, path)
+	return err
+}
+
+func GetJobPaths(db *sql.DB, jobID int64) ([]JobFile, []JobDir, error) {
+	rowsF, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC`, jobID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rowsF.Close()
+	var files []JobFile
+	for rowsF.Next() {
+		var f JobFile
+		if err := rowsF.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+			return nil, nil, err
+		}
+		files = append(files, f)
+	}
+	if err := rowsF.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	// Derive directories from recorded files instead of relying on job_dirs.
+	// This keeps the DB focused on files and avoids noise like a generic
+	// "Albums" parent showing up as the artifact root.
+	if len(files) == 0 {
+		return files, nil, nil
+	}
+	// collect parent dirs and earliest created time per dir
+	parentTimes := make(map[string]time.Time)
+	for _, f := range files {
+		d := filepath.Dir(f.Path)
+		if t, ok := parentTimes[d]; !ok || f.CreatedAt.Before(t) {
+			parentTimes[d] = f.CreatedAt
+		}
+	}
+	// build unique parent list
+	uniq := make([]string, 0, len(parentTimes))
+	for p := range parentTimes {
+		uniq = append(uniq, p)
+	}
+	// collapse to deepest-owned dirs (remove ancestors)
+	sort.Slice(uniq, func(i, j int) bool { return depth(uniq[i]) > depth(uniq[j]) })
+	var owned []JobDir
+	for _, p := range uniq {
+		skip := false
+		for _, od := range owned {
+			if isSubpath(p, od.Path) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			owned = append(owned, JobDir{JobID: jobID, Path: p, CreatedAt: parentTimes[p]})
+		}
+	}
+
+	return files, owned, nil
+}
+
+func GetJobFileByID(db *sql.DB, id int64) (*JobFile, error) {
+	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE id = ?`, id)
+	var f JobFile
+	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+func GetJobFileByPath(db *sql.DB, path string) (*JobFile, error) {
+	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE path = ? LIMIT 1`, path)
+	var f JobFile
+	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+// GetJobFileByPathForJob finds a job_file record by job_id+path. Use this when
+// you know which job the file belongs to to avoid cross-job collisions.
+func GetJobFileByPathForJob(db *sql.DB, jobID int64, path string) (*JobFile, error) {
+	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? AND path = ? LIMIT 1`, jobID, path)
+	var f JobFile
+	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+func UpdateJobFileSize(db *sql.DB, jobID int64, path string, size int64, createdAt time.Time) error {
+	_, err := db.Exec(`UPDATE job_files SET size_bytes = ?, created_at = ? WHERE job_id = ? AND path = ?`, size, createdAt, jobID, path)
+	return err
+}
+
+func ListJobFilesByPath(db *sql.DB, path string) ([]JobFile, error) {
+	rows, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE path = ?`, path)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []JobFile
+	for rows.Next() {
+		var f JobFile
+		if err := rows.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+// Deprecated: job_dirs is no longer authoritative. Directories are derived
+// from job_files (parents of recorded files). This function remains for
+// compatibility but will return an error indicating it's unsupported.
+// JobFileExists checks whether a file path already exists for the job.
+func JobFileExists(db *sql.DB, jobID int64, path string) (bool, error) {
+	row := db.QueryRow(`SELECT COUNT(1) FROM job_files WHERE job_id = ? AND path = ?`, jobID, path)
+	var cnt int
+	if err := row.Scan(&cnt); err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
+}
+
+func ListJobLogs(db *sql.DB, jobID int64, limit int) ([]JobLog, error) {
+	q := `SELECT id, job_id, line, when_ts FROM job_logs WHERE job_id = ? ORDER BY id ASC`
+	if limit > 0 {
+		q += ` LIMIT ?`
+	}
+
+	var rows *sql.Rows
+	var err error
+	if limit > 0 {
+		rows, err = db.Query(q, jobID, limit)
+	} else {
+		rows, err = db.Query(q, jobID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []JobLog
+	for rows.Next() {
+		var log JobLog
+		if err := rows.Scan(&log.ID, &log.JobID, &log.Line, &log.When); err != nil {
+			return nil, err
+		}
+		out = append(out, log)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func InsertJobLogLines(db *sql.DB, jobID int64, lines []LogLine) error {
+	if len(lines) == 0 {
+		return nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT INTO job_logs (job_id, line, when_ts) VALUES (?, ?, ?)`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+	for _, entry := range lines {
+		when := entry.When
+		if when.IsZero() {
+			when = time.Now()
+		}
+		if _, err := stmt.Exec(jobID, entry.Line, when); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// AppendSummaryLine persists a final summary line that should appear at the end
+// of the job console. This is used to write a final success/failure message
+// from the server into the job_logs table so clients see it as normal log output.
+func AppendSummaryLine(db *sql.DB, jobID int64, line string, when time.Time) error {
+	if when.IsZero() {
+		when = time.Now()
+	}
+	_, err := db.Exec(`INSERT INTO job_logs (job_id, line, when_ts) VALUES (?, ?, ?)`, jobID, line, when)
+	return err
+}
+
+func CountJobArtifacts(db *sql.DB, jobID int64) (fileCount int, dirCount int, err error) {
+	// Count files directly and derive directories from file parents.
+	row := db.QueryRow(`SELECT COUNT(1) FROM job_files WHERE job_id = ?`, jobID)
+	if err = row.Scan(&fileCount); err != nil {
+		return
+	}
+	_, dirs, err := GetJobPaths(db, jobID)
+	if err != nil {
+		return
+	}
+	dirCount = len(dirs)
+	return
+}
+
+func GetPrimaryJobFile(db *sql.DB, jobID int64) (*JobFile, error) {
+	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC LIMIT 1`, jobID)
+	var f JobFile
+	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+func ListJobFiles(db *sql.DB, jobID int64) ([]JobFile, error) {
+	rows, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC`, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var files []JobFile
+	for rows.Next() {
+		var f JobFile
+		if err := rows.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+func ListJobDirs(db *sql.DB, jobID int64) ([]JobDir, error) {
+	// Return derived directories (parents of recorded files) instead of reading
+	// the job_dirs table.
+	_, dirs, err := GetJobPaths(db, jobID)
+	if err != nil {
+		return nil, err
+	}
+	return dirs, nil
+}
+
+func DeleteJobLogs(db *sql.DB, jobID int64) error {
+	_, err := db.Exec(`DELETE FROM job_logs WHERE job_id = ?`, jobID)
+	return err
+}
+
+func DeleteLogsForArchivedJobs(db *sql.DB) error {
+	_, err := db.Exec(`DELETE FROM job_logs WHERE job_id IN (SELECT id FROM jobs WHERE archived = 1)`)
+	return err
+}
+
+func UnarchiveJob(db *sql.DB, id int64) error {
+	_, err := db.Exec(`UPDATE jobs SET archived = 0 WHERE id = ?`, id)
+	return err
+}
+
+func DeleteJobFilesAndDirs(db *sql.DB, jobID int64) error {
+	_, err := db.Exec(`DELETE FROM job_files WHERE job_id = ?`, jobID)
+	if err != nil {
+		return err
+	}
+	return nil
+}

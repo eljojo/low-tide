@@ -1,0 +1,19 @@
+listen_addr: ":8080"
+db_path: "lowtide.db"
+watch_dir: "downloads"
+apps:
+  - id: "yt-dlp"
+    name: "yt-dlp"
+    command: "yt-dlp"
+    args: ["-P", ".", "%u"]
+    regex: '^https?://(www\.)?(youtube|vimeo|soundcloud|bandcamp|mixcloud)\.com/'
+  - id: "tidal-dl-ng"
+    name: "tidal-dl-ng"
+    command: "tidal-dl-ng"
+    args: ["dl", "%u"]
+    regex: '^https?://(www\.|listen\.)?tidal\.com/'
+  - id: "auto"
+    name: "Auto (choose by URL)"
+    command: ""
+    args: []
+    regex: ''

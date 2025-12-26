@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Low Tide</title>
+<style>
+  :root {
+    --bg: #041b26;
+    --fg: #fef4e3;
+    --accent: #ff7f1f;
+    --accent2: #00c0a3;
+    --muted: #5c6f82;
+    --card-bg: #0c2835;
+    --danger: #ff4b5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    padding: 1rem 1.5rem;
+    background: linear-gradient(90deg, #ff7f1f, #ffca1f);
+    color: #041b26;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 0 20px rgba(255, 127, 31, 0.4);
+  }
+  header .blob {
+    width: 32px;
+    height: 32px;
+    background: #041b26;
+    border-radius: 60% 40% 40% 70% / 50% 60% 40% 50%;
+  }
+  main {
+    flex: 1;
+    padding: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1.2rem;
+    align-items: start;
+  }
+  .card {
+    background: var(--card-bg);
+    border-radius: 14px;
+    padding: 1rem 1.2rem;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 14px 30px rgba(0,0,0,0.45);
+  }
+  h2 {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 0.6rem;
+  }
+  label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+    color: var(--muted);
+  }
+  textarea, input, select {
+    width: 100%;
+    background: #021016;
+    border: 1px solid #163445;
+    border-radius: 10px;
+    color: var(--fg);
+    padding: 0.6rem 0.7rem;
+    font-family: inherit;
+    font-size: 0.86rem;
+    resize: vertical;
+  }
+  textarea:focus, input:focus, select:focus {
+    outline: 1px solid var(--accent2);
+    border-color: var(--accent2);
+  }
+  button {
+    background: var(--accent);
+    color: #041b26;
+    border: none;
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: transform 0.05s ease, box-shadow 0.1s ease, background 0.15s ease;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.35);
+  }
+  button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 0 rgba(0,0,0,0.45);
+  }
+  button:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.45);
+  }
+  button.secondary {
+    background: #021016;
+    color: var(--fg);
+    border-radius: 999px;
+    border: 1px solid #30475e;
+    box-shadow: none;
+  }
+  /* danger defaults to neutral and shows red on hover */
+  button.danger {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  button.danger:hover {
+    background: var(--danger);
+    color: #fff;
+    border-color: var(--danger);
+  }
+  .row {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    margin-top: 0.5rem;
+  }
+  .row.space-between {
+    justify-content: space-between;
+  }
+  .jobs-list {
+    max-height: 64vh;
+    overflow-y: auto;
+    margin-top: 0.3rem;
+  }
+  .job-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.45rem 0.5rem;
+    border-radius: 10px;
+    background: rgba(2, 16, 22, 0.7);
+    border: 1px solid rgba(255,255,255,0.03);
+    margin-bottom: 0.3rem;
+    cursor: pointer;
+  }
+  .job-item.selected { box-shadow: 0 0 0 2px rgba(0,192,163,0.12); }
+  .job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .status-pill {
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .status-queued { background: rgba(0,192,163,0.15); color: var(--accent2); }
+  .status-running { background: rgba(0,170,255,0.12); color: #73d1ff; }
+  .job-item.running { box-shadow: 0 0 8px rgba(115,209,255,0.12); position: relative; }
+  .job-item.running::after { content: ""; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width:10px; height:10px; border-radius:50%; background: rgba(115,209,255,0.9); box-shadow: 0 0 8px rgba(115,209,255,0.8); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0% { transform: translateY(-50%) scale(0.9); opacity:0.7 } 50% { transform: translateY(-50%) scale(1.1); opacity:1 } 100% { transform: translateY(-50%) scale(0.9); opacity:0.7 } }
+  .status-success { background: rgba(0,192,163,0.2); color: #54f29b; }
+  .status-failed  { background: rgba(255,75,92,0.2); color: #ff9aa6; }
+  .job-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .monospace {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  #log-view {
+    background: #021016;
+    border-radius: 10px;
+    padding: 0.6rem;
+    font-size: 0.8rem;
+    height: 36vh;
+    overflow-y: auto;
+    border: 1px solid #163445;
+  }
+  #log-view pre {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .files-list { max-height: 36vh; overflow-y: auto; margin-top: 0.5rem; }
+  /* files-area collapse animation (CSS-only slide down/up) */
+  .files-area { overflow: hidden; }
+  #files-area-inner { transition: max-height 260ms cubic-bezier(.25,.8,.25,1), opacity 240ms ease, transform 260ms cubic-bezier(.25,.8,.25,1); max-height: 0; opacity: 0; transform: translateY(-6px); }
+  #files-area-inner.expanded { max-height: 800px; opacity: 1; transform: translateY(0); }
+  .file-item { display:flex; justify-content:space-between; padding:0.4rem; border-radius:8px; background:rgba(2,16,22,0.6); margin-bottom:0.25rem; }
+  .file-name { font-size:0.9rem; }
+  .files-list a { color: var(--accent2); text-decoration: none; }
+  .files-list a:visited { color: rgba(0,192,163,0.8); }
+
+  /* console collapse animation */
+  #console-area { overflow: hidden; }
+  #console-inner { transition: max-height 260ms cubic-bezier(.25,.8,.25,1), opacity 200ms ease, transform 260ms cubic-bezier(.25,.8,.25,1); max-height: 0; opacity: 0; transform: translateY(-6px); }
+  #console-inner.expanded { max-height: 800px; opacity: 1; transform: translateY(0); }
+  footer {
+    padding: 0.6rem 1.5rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="blob"></div>
+  <div>Low Tide</div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>New Download Job</h2>
+    <form id="new-job-form">
+      <label for="app">Downloader</label>
+      <select id="app" name="app_id"></select>
+
+      <label for="urls">URLs (one per line or space-separated)</label>
+      <textarea id="urls" name="urls" rows="4" placeholder="https://example.com/file1.mp3
+https://example.com/file2.mp3"></textarea>
+
+      <div class="row" style="justify-content: flex-end; margin-top: 0.8rem;">
+        <button type="submit">Queue Job</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" style="grid-column: 2;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0;">Jobs</h2>
+      <div>
+        <button class="secondary" id="toggle-archived">▸</button>
+      </div>
+    </div>
+    <h3 style="color:var(--muted); margin:0.6rem 0 0.2rem 0;">Active</h3>
+    <div class="jobs-list monospace" id="jobs-list"></div>
+
+    <div id="archived-section" style="display:none; margin-top:0.8rem;">
+      <h3 style="color:var(--muted); margin:0.6rem 0 0.2rem 0;">Archived</h3>
+      <div class="jobs-list monospace" id="archived-list"></div>
+    </div>
+  </section>
+
+  <!-- Chosen job status: spans full width underneath form + job list -->
+  <section class="card" id="files-pane" style="display:none; grid-column: 1 / -1; margin-top: 1.2rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0;">Job <span id="files-job-title">(none)</span></h2>
+      <div>
+        <button class="secondary" id="close-files-btn">Close</button>
+      </div>
+    </div>
+
+    <div style="margin-top:0.6rem; display:flex; gap:1.2rem; align-items:flex-start;">
+      <div style="flex:1;">
+        <div class="row" id="job-actions-row" style="margin-bottom:0.5rem;">
+          <button class="secondary" id="action-retry" style="display:none;">Retry</button>
+          <button class="secondary" id="action-download">Download ZIP</button>
+          <button class="secondary" id="job-open-source" style="order:0;">Open origin</button>
+          <button class="secondary" id="action-archive">Archive</button>
+          <button class="secondary danger" id="action-delete">Delete</button>
+        </div>
+
+        <div id="files-area" class="files-area">
+          <div id="files-area-inner">
+            <h3 style="margin:0 0 0.4rem 0; color:var(--muted);">Files</h3>
+            <div class="files-list monospace" id="files-list"><em>Select a job to view files.</em></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div style="margin-top:1rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0 0 0.4rem 0; color:var(--muted);">Logs</h3>
+        <div>
+          <button class="secondary" id="toggle-console">Expand</button>
+        </div>
+      </div>
+      <div id="console-area">
+        <div id="console-inner">
+          <div id="log-view" class="monospace"><pre id="log-pre">No job selected.</pre></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<footer>
+  <span>One-at-a-time downloads</span>
+  <span>Go · WebSocket · SQLite · 90s slime</span>
+</footer>
+
+<script>
+  let currentLogSocket = null;
+  let stateSocket = null;
+  let selectedJob = null; // user-selected pinned job
+  let pinned = false;
+
+  async function fetchState() {
+    try {
+      const [jobsRes, archivedRes, appsRes] = await Promise.all([
+        fetch('/api/jobs'),
+        fetch('/api/jobs?archived=1'),
+        fetch('/api/apps'),
+      ]);
+      const jobs = await jobsRes.json();
+      const archived = await archivedRes.json();
+      const apps = await appsRes.json();
+      renderApps(apps);
+      renderJobs('jobs-list', jobs);
+      renderJobs('archived-list', archived, true);
+
+      // keep selection updated
+      if (selectedJob) {
+        const all = jobs.concat(archived);
+        const found = all.find(j => j.id === selectedJob.id);
+        if (found) {
+          selectedJob = found;
+          document.getElementById('files-job-title').textContent = selectedJob.title || ('#' + selectedJob.id);
+        } else {
+          // if archived/removed, clear selection
+          selectedJob = null;
+          pinned = false;
+          hideFilesPane();
+        }
+      }
+    } catch (err) {
+      console.error('fetchState', err);
+    }
+  }
+
+  function initStateSocket() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(proto + '//' + location.host + '/ws/state');
+    stateSocket = ws;
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        handleStateMessage(msg);
+      } catch (e) {
+        console.error('state ws parse', e);
+      }
+    };
+    ws.onclose = () => {
+      // reconnect with backoff
+      stateSocket = null;
+      setTimeout(initStateSocket, 2000);
+    };
+  }
+
+  let consoleCollapsed = true; // default collapsed
+  let fetchFilesDebounce = null;
+
+  function scheduleFetchJobFiles(jobId) {
+    if (fetchFilesDebounce) clearTimeout(fetchFilesDebounce);
+    fetchFilesDebounce = setTimeout(() => { fetchJobFiles(jobId); fetchFilesDebounce = null }, 250);
+  }
+
+  async function handleStateMessage(msg) {
+    if (!msg || !msg.type) return;
+    const pre = document.getElementById('log-pre');
+    switch (msg.type) {
+      case 'job_update':
+        // refresh job list
+        await fetchState();
+
+        // If the update pertains to the currently selected job, refresh files/logs and update UI
+        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
+          await fetchJobFiles(msg.job_id);
+          await fetchJobLogs(msg.job_id);
+          // auto-collapse console on success, expand on running/failed
+          if (msg.status === 'success') {
+            collapseConsole();
+          } else if (msg.status === 'running' || msg.status === 'failed') {
+            expandConsole();
+          }
+        }
+
+        // auto-select queued jobs: always select the new job except when the user has
+        // a pinned job AND that pinned job is currently running.
+        if (msg.status === 'queued' && msg.job_id) {
+          try {
+            // fetch current job status (server-reported)
+            const curRes = await fetch('/api/current');
+            const cur = await curRes.json();
+
+            // fetch latest jobs snapshot
+            const r = await fetch('/api/jobs');
+            const jobs = await r.json();
+            const found = jobs.find(j => j.id === msg.job_id);
+            if (!found) return;
+
+            // If user has pinned a job and that pinned job is running, don't disturb it.
+            if (pinned && selectedJob && selectedJob.status === 'running') {
+              // keep user's pinned running job selected
+              return;
+            }
+
+            // Otherwise select the new job. We intentionally replace selection even if
+            // something else was selected, per user rule.
+            selectJob(found);
+
+          } catch (e) {
+            // best-effort fallback: attempt to find and select the job
+            try {
+              const r = await fetch('/api/jobs');
+              const jobs = await r.json();
+              const found = jobs.find(j => j.id === msg.job_id);
+              if (!found) return;
+              if (pinned && selectedJob && selectedJob.status === 'running') return;
+              selectJob(found);
+            } catch (e2) {
+              // ignore
+            }
+          }
+        }
+        // if a job started running and user hasn't pinned a job, show its logs
+        if (!pinned && msg.status === 'running' && msg.job_id) {
+          openLogStream(msg.job_id, true);
+        }
+        break;
+      case 'job_files':
+        // full files snapshot pushed by backend every ~100ms if dirty
+        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
+          renderFilesList(msg.job_id, msg.files || [], msg.dirs || []);
+          const filesAreaInner = document.getElementById('files-area-inner');
+          if ((msg.files && msg.files.length > 0) || (msg.dirs && msg.dirs.length > 0)) {
+            filesAreaInner.classList.add('expanded');
+          } else if (selectedJob && selectedJob.status === 'running') {
+            filesAreaInner.classList.remove('expanded');
+          }
+        }
+        break;
+      case 'files_update':
+        // payload contains files and dirs arrays
+        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
+          renderFilesList(msg.job_id, msg.files || [], msg.dirs || []);
+          // auto-expand files area when first file appears
+          const filesAreaInner = document.getElementById('files-area-inner');
+          if ((msg.files && msg.files.length > 0) || (msg.dirs && msg.dirs.length > 0)) {
+            filesAreaInner.classList.add('expanded');
+          } else if (selectedJob && selectedJob.status === 'running') {
+            filesAreaInner.classList.remove('expanded');
+          }
+        }
+        break;
+      case 'files_update_partial':
+        // partial: either file or dir; if file object is provided update in-place
+        if (selectedJob && msg.job_id && selectedJob.id === msg.job_id) {
+          if (msg.file) {
+            // msg.file may be an object with path/size_bytes or a simple string path
+            const f = msg.file;
+            if (typeof f === 'object' && f.path) {
+              // try to update existing row by path; otherwise append a new entry
+              const filesList = document.getElementById('files-list');
+              const basename = f.path.split('/').pop();
+              let found = null;
+              Array.from(filesList.querySelectorAll('.file-item')).forEach(row => {
+                if (row.dataset && row.dataset.path === f.path) found = row;
+              });
+              if (found) {
+                const sizeSpan = found.querySelector('span[data-size]');
+                if (sizeSpan) sizeSpan.textContent = '(' + humanSize(f.size_bytes) + ')';
+              } else {
+                // append a minimal row for this file
+                const row = document.createElement('div'); row.className = 'file-item'; row.dataset.path = f.path;
+                const left = document.createElement('div'); left.className = 'file-name';
+                left.innerHTML = `<a href='/api/jobs/${msg.job_id}/files/${f.id}'>${basename}</a> <span data-size style='color:var(--muted)'>(${humanSize(f.size_bytes)})</span>`;
+                row.appendChild(left);
+                filesList.appendChild(row);
+              }
+            } else {
+              // fallback to debounced full fetch when we only have a path string
+              scheduleFetchJobFiles(msg.job_id);
+            }
+          } else if (msg.dir) {
+            // for dir partial we refresh snapshot (debounced)
+            scheduleFetchJobFiles(msg.job_id);
+          }
+        }
+        break;
+      case 'jobs_archived':
+        await fetchState();
+        break;
+      default:
+        // ignore unknown
+    }
+  }
+
+  function collapseConsole() {
+    const inner = document.getElementById('console-inner');
+    if (inner) inner.classList.remove('expanded');
+    document.getElementById('toggle-console').textContent = 'Expand';
+    consoleCollapsed = true;
+  }
+  function expandConsole() {
+    const inner = document.getElementById('console-inner');
+    if (inner) inner.classList.add('expanded');
+    document.getElementById('toggle-console').textContent = 'Collapse';
+    consoleCollapsed = false;
+  }
+
+  document.getElementById('toggle-console').addEventListener('click', () => {
+    if (consoleCollapsed) expandConsole(); else collapseConsole();
+  });
+
+  function humanSize(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    const b = Number(bytes);
+    if (b < 1024) return b + ' B';
+    const kb = b / 1024;
+    if (kb < 1024) return Math.round(kb) + ' KB';
+    const mb = kb / 1024;
+    if (mb < 1024) return Math.round(mb) + ' MB';
+    const gb = mb / 1024;
+    return Math.round(gb) + ' GB';
+  }
+
+  function renderApps(apps) {
+    const sel = document.getElementById('app');
+    sel.innerHTML = '';
+    apps.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderJobs(targetId, jobs, archived) {
+    const el = document.getElementById(targetId);
+    el.innerHTML = '';
+    jobs.forEach(job => {
+      const div = document.createElement('div');
+      div.className = 'job-item';
+      if (selectedJob && job.id === selectedJob.id) div.classList.add('selected');
+      if (job.status === 'running') div.classList.add('running');
+
+      const header = document.createElement('div');
+      header.className = 'job-header';
+
+      const left = document.createElement('div');
+      const title = job.title && job.title !== '' ? job.title : (job.urls || []).join(' ');
+      left.innerHTML = `${job.app_id}</span> &middot; ${title}`;
+      header.appendChild(left);
+
+      const status = document.createElement('div');
+      status.className = 'status-pill status-' + job.status;
+      status.textContent = job.status.toUpperCase();
+      header.appendChild(status);
+      div.appendChild(header);
+
+      // Minimal clickable job item (actions moved to JOB ACTIONS pane)
+      div.onclick = () => selectJob(job);
+      el.appendChild(div);
+    });
+  }
+
+  async function archiveJob(id) {
+    // archive without confirmation
+    await fetch('/api/jobs/' + id + '/archive', {method: 'POST'});
+    await fetchState();
+    if (selectedJob && selectedJob.id === id) {
+      selectedJob = null; pinned = false; hideFilesPane();
+    }
+  }
+
+  async function selectJob(job, doPin = true) {
+    selectedJob = job;
+    pinned = !!doPin;
+    showFilesPane();
+    document.getElementById('files-job-title').textContent = job.title || ('#' + job.id);
+    await fetchJobFiles(job.id);
+    await fetchJobLogs(job.id);
+    openLogStream(job.id, false); // don't clear persisted logs
+    // Ensure console is open for running or failed jobs
+    if (job && job.status === 'running') expandConsole();
+  }
+
+  function showFilesPane() {
+    document.getElementById('files-pane').style.display = '';
+  }
+  function hideFilesPane() {
+    document.getElementById('files-pane').style.display = 'none';
+    document.getElementById('files-list').innerHTML = '<em>Select a job to view files.</em>';
+    const pre = document.getElementById('log-pre');
+    if (pre) pre.textContent = 'No job selected.';
+  }
+
+  async function fetchJobFiles(id) {
+    if (!id) return;
+    try {
+      const res = await fetch('/api/jobs/' + id + '/files');
+      if (!res.ok) {
+        document.getElementById('files-list').innerHTML = '<em>No files.</em>';
+        document.getElementById('action-download').style.display = 'none';
+        // collapse files area
+        document.getElementById('files-area-inner').classList.remove('expanded');
+        return;
+      }
+      const data = await res.json();
+
+      const fcount = (data.files||[]).length;
+      const dcount = (data.dirs||[]).length;
+      const total = fcount + dcount;
+
+      // Files area visibility rules:
+      // - If job is running and total==0 -> hide files area (it will expand when first file appears)
+      // - If job failed and total==0 -> show empty state message
+      // - Otherwise show files area expanded
+      const filesAreaInner = document.getElementById('files-area-inner');
+      if (selectedJob && selectedJob.status === 'running' && total === 0) {
+        // hide
+        filesAreaInner.classList.remove('expanded');
+      } else {
+        // show
+        filesAreaInner.classList.add('expanded');
+      }
+
+      renderFilesList(id, data.files, data.dirs);
+
+      const actionDownload = document.getElementById('action-download');
+      if (total === 0) {
+        actionDownload.style.display = 'none';
+      } else if (fcount === 1 && dcount === 0) {
+        actionDownload.style.display = '';
+        actionDownload.textContent = 'Download';
+        actionDownload.onclick = () => { window.location = '/api/jobs/' + id + '/files/' + data.files[0].id };
+      } else {
+        actionDownload.style.display = '';
+        actionDownload.textContent = 'Download ZIP';
+        actionDownload.onclick = () => { window.location = '/api/jobs/' + id + '/zip' };
+      }
+
+      // show retry only when job failed
+      const actionRetry = document.getElementById('action-retry');
+      if (selectedJob && selectedJob.status === 'failed') {
+        actionRetry.style.display = '';
+      } else {
+        actionRetry.style.display = 'none';
+      }
+      // archive visibility
+      const actionArchive = document.getElementById('action-archive');
+      if (selectedJob && selectedJob.archived) {
+        actionArchive.style.display = 'none';
+      } else {
+        actionArchive.style.display = '';
+      }
+      // delete styling unchanged; confirmation handled elsewhere
+      // set original url open-source button
+      if (selectedJob && selectedJob.original_url) {
+        const btn = document.getElementById('job-open-source');
+        btn.onclick = () => window.open(selectedJob.original_url, '_blank');
+        btn.style.display = '';
+      } else {
+        const btn = document.getElementById('job-open-source');
+        btn.style.display = 'none';
+      }
+    } catch (err) {
+      console.error('fetchJobFiles', err);
+    }
+  }
+
+  async function fetchJobLogs(id) {
+    if (!id) return;
+    try {
+      const res = await fetch('/api/jobs/' + id + '/logs');
+      if (!res.ok) return;
+      const data = await res.json();
+      const pre = document.getElementById('log-pre');
+      pre.textContent = '';
+      data.logs.forEach(l => { pre.textContent += l.line + '\n'; });
+    } catch (err) {
+      console.error('fetchJobLogs', err);
+    }
+  }
+
+  function renderFilesList(jobId, files, dirs) {
+    const el = document.getElementById('files-list');
+    el.innerHTML = '';
+    if ((!files || files.length === 0) && (!dirs || dirs.length === 0)) {
+      el.innerHTML = '<em>No files recorded for this job.</em>';
+      document.getElementById('action-download').style.display = 'none';
+      return;
+    }
+
+    // Group files by deepest-owned dir (use dirs array as the set of deepest owned dirs)
+    const dirSet = new Set((dirs || []).map(d => d.path));
+    function findGroup(path) {
+      let best = '';
+      dirSet.forEach(dp => {
+        if (path === dp || path.startsWith(dp + '/')) {
+          if (dp.length > best.length) best = dp;
+        }
+      });
+      return best;
+    }
+
+    const groups = {};
+    (files || []).forEach(f => {
+      const groupDir = findGroup(f.path);
+      const groupName = groupDir ? groupDir.split('/').pop() : '';
+      if (!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push(f);
+    });
+
+    const groupNames = Object.keys(groups);
+    groupNames.sort((a, b) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b);
+    });
+
+    groupNames.forEach(g => {
+      const filesInGroup = groups[g].slice().sort((a, b) => {
+        const an = a.path.split('/').pop().toLowerCase();
+        const bn = b.path.split('/').pop().toLowerCase();
+        return an.localeCompare(bn);
+      });
+      if (g) {
+        const hdr = document.createElement('div');
+        hdr.style.fontWeight = '600'; hdr.style.margin = '0.4rem 0 0.2rem 0'; hdr.textContent = g;
+        el.appendChild(hdr);
+      }
+      filesInGroup.forEach(f => {
+        const row = document.createElement('div'); row.className = 'file-item';
+        const left = document.createElement('div'); left.className = 'file-name';
+        left.innerHTML = `<a href='/api/jobs/${jobId}/files/${f.id}'>${f.path.split('/').pop()}</a> <span style='color:var(--muted)'>(${humanSize(f.size_bytes)})</span>`;
+        row.appendChild(left); el.appendChild(row);
+      });
+    });
+  }
+
+  async function retryJob(id) {
+    await fetch('/api/jobs/' + id + '/retry', {method: 'POST'});
+    // immediate refresh
+    await fetchState();
+  }
+
+  async function deleteJobFiles(id) {
+    if (!confirm('Delete files for job #' + id + '?')) return;
+    await fetch('/api/jobs/' + id + '/files', {method: 'DELETE'});
+    await fetchState();
+    if (selectedJob && selectedJob.id === id) fetchJobFiles(id);
+  }
+
+  async function clearJobs() {
+    await fetch('/api/jobs/clear', {method: 'POST'});
+    await fetchState();
+  }
+
+  async function openLogStream(jobId, clearBefore = false) {
+    if (currentLogSocket) currentLogSocket.close();
+    const pre = document.getElementById('log-pre');
+    // always fetch persisted logs first so new tabs show history
+    await fetchJobLogs(jobId);
+    if (clearBefore) pre.textContent = '';
+
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(proto + '//' + location.host + '/ws/logs?id=' + jobId);
+    currentLogSocket = ws;
+
+    ws.onmessage = (ev) => {
+      pre.textContent += ev.data + '\n';
+      const logView = document.getElementById('log-view');
+      logView.scrollTop = logView.scrollHeight;
+    };
+    ws.onclose = () => {
+      if (currentLogSocket === ws) currentLogSocket = null;
+    };
+  }
+
+  document.getElementById('new-job-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const fd = new FormData(form);
+    const resp = await fetch('/api/jobs', { method: 'POST', body: fd });
+    const data = await resp.json().catch(() => null);
+    form.reset();
+    await fetchState();
+    // If a job was created and there's no running job, auto-select the created job
+    try {
+      const curRes = await fetch('/api/current');
+      const cur = await curRes.json();
+      if ((!cur.current_job || cur.current_job === 0) && data) {
+        let id = data.id || (data.ids && data.ids[0]);
+        if (id) {
+          // fetch jobs list to find the job object
+          const r = await fetch('/api/jobs');
+          const jobs = await r.json();
+          const found = jobs.find(j => j.id === id);
+          if (found && !selectedJob) {
+            selectJob(found);
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  });
+
+  // Actions in JOB ACTIONS pane handle download/archive/retry/delete
+  document.getElementById('action-download').addEventListener('click', () => { if (selectedJob) window.location = '/api/jobs/' + selectedJob.id + '/zip'; });
+  document.getElementById('action-archive').addEventListener('click', async () => { if (selectedJob) await fetch('/api/jobs/' + selectedJob.id + '/archive', {method: 'POST'}); await fetchState(); });
+  document.getElementById('action-retry').addEventListener('click', async () => { if (selectedJob) await retryJob(selectedJob.id); });
+  document.getElementById('action-delete').addEventListener('click', async () => { if (!selectedJob) return; if (!confirm('Delete job #' + selectedJob.id + ' (archive + delete files)?')) return; await fetch('/api/jobs/' + selectedJob.id + '/delete', {method: 'POST'}); await fetchState(); selectedJob = null; pinned = false; hideFilesPane(); });
+  // Wire UI controls
+  document.getElementById('close-files-btn').addEventListener('click', () => {
+    // unpin selection and revert to current running logs
+    selectedJob = null;
+    pinned = false;
+    hideFilesPane();
+    fetchCurrentAndShowLogs();
+  });
+
+  document.getElementById('toggle-archived').addEventListener('click', (ev) => {
+    const sec = document.getElementById('archived-section');
+    const btn = document.getElementById('toggle-archived');
+    if (sec.style.display === 'none' || sec.style.display === '') {
+      sec.style.display = '';
+      btn.textContent = '▾';
+    } else {
+      sec.style.display = 'none';
+      btn.textContent = '▸';
+    }
+  });
+
+  // Initialize: fetch state and start state websocket for live updates
+  async function start() {
+    await fetchState();
+    initStateSocket();
+    // show logs for current running job by default
+    await fetchCurrentAndShowLogs();
+  }
+
+  async function fetchCurrentAndShowLogs() {
+    try {
+      const r = await fetch('/api/current');
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.current_job && d.current_job !== 0) {
+        if (!pinned) {
+          openLogStream(d.current_job, true);
+        }
+      } else {
+        // no current job
+        if (!pinned) {
+          const pre = document.getElementById('log-pre');
+          pre.textContent = 'No job selected.';
+        }
+      }
+    } catch (e) {
+      console.error('fetchCurrent', e);
+    }
+  }
+
+  start();
+</script>
+</body>
+</html>
