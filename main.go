@@ -112,7 +112,6 @@ func main() {
 	mux.HandleFunc("/api/jobs/clear", srv.handleClearJobs)
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
 	mux.HandleFunc("/ws/state", srv.handleStateWS)
-	mux.HandleFunc("/api/current", srv.handleCurrent)
 
 	log.Printf("Low Tide listening on %s", cfg.ListenAddr)
 	log.Fatal(http.ListenAndServe(cfg.ListenAddr, loggingMiddleware(mux)))
@@ -135,8 +134,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		archived := r.URL.Query().Get("archived") == "1"
-		jobsList, err := store.ListJobs(s.DB, archived, 100)
+		jobsList, err := store.ListJobs(s.DB, 100)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -598,17 +596,6 @@ func (s *Server) handleStateWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-}
-
-// Return current running job id
-func (s *Server) handleCurrent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	id := s.Mgr.CurrentJobID()
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]int64{"current_job": id})
 }
 
 // zip helpers

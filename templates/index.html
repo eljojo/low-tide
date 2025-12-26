@@ -628,25 +628,16 @@ https://example.com/file2.mp3"></textarea>
 
   async function loadInitialData() {
     try {
-        const [activeRes, archivedRes, currentRes] = await Promise.all([
-            fetch('/api/jobs'),
-            fetch('/api/jobs?archived=1'),
-            fetch('/api/current')
-        ]);
-        
-        const active = await activeRes.json();
-        const archived = await archivedRes.json();
-        const currentData = await currentRes.json();
+        const res = await fetch('/api/jobs');
+        const jobs = await res.json();
         
         // Populate giant object
-        active.forEach(j => updateJobState(j));
-        archived.forEach(j => updateJobState(j));
+        jobs.forEach(j => updateJobState(j));
         
-        // If there is a current running job, auto-select it if nothing else selected
-        if (currentData.current_job && currentData.current_job !== 0) {
-            selectJob(currentData.current_job);
-        } else if (active.length > 0) {
-            // Optional: select most recent? No, maybe don't select anything by default unless running.
+        // If there is a current running job, auto-select it
+        const runningJob = jobs.find(j => j.status === 'running');
+        if (runningJob) {
+            selectJob(runningJob.id);
         }
         
         render();

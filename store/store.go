@@ -207,13 +207,8 @@ func GetJob(db *sql.DB, id int64) (*Job, error) {
 	return &j, nil
 }
 
-func ListJobs(db *sql.DB, includeArchived bool, limit int) ([]Job, error) {
+func ListJobs(db *sql.DB, limit int) ([]Job, error) {
 	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
-	if includeArchived {
-		q += ` WHERE archived = 1`
-	} else {
-		q += ` WHERE archived = 0`
-	}
 	q += ` ORDER BY created_at DESC`
 	if limit > 0 {
 		q += ` LIMIT ?`
