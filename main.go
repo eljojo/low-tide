@@ -1,16 +1,12 @@
 package main
 
 import (
-	"archive/zip"
 	"database/sql"
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"mime"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,29 +22,6 @@ import (
 	"low-tide/store"
 )
 
-// helper to create a safe Content-Disposition header with both filename and filename*
-func contentDisposition(filename string) string {
-	base := filepath.Base(filename)
-	// sanitize simple problematic characters
-	safe := strings.Map(func(r rune) rune {
-		if r == '\\' || r == '"' || r == '\n' || r == '\r' || r == '/' || r == '\x00' {
-			return '_'
-		}
-		return r
-	}, base)
-	escaped := url.PathEscape(base)
-	return fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", safe, escaped)
-}
-
-func setDownloadHeaders(w http.ResponseWriter, filename string) {
-	w.Header().Set("Content-Disposition", contentDisposition(filename))
-	if ext := filepath.Ext(filename); ext != "" {
-		if mt := mime.TypeByExtension(ext); mt != "" {
-			w.Header().Set("Content-Type", mt)
-		}
-	}
-}
-
 //go:embed templates/*.html
 var templatesFS embed.FS
 
@@ -60,16 +33,6 @@ type Server struct {
 	DB  *sql.DB
 	Cfg *config.Config
 	Mgr *jobs.Manager
-}
-
-// loggingMiddleware logs basic request information for every HTTP request.
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		log.Printf("%s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s done in %s", r.Method, r.URL.Path, time.Since(start))
-	})
 }
 
 func main() {
@@ -205,32 +168,6 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-}
-
-func splitURLs(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
-	lines := strings.Split(s, "\n")
-	var out []string
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		out = append(out, fields...)
-	}
-	uniq := make([]string, 0, len(out))
-	seen := map[string]struct{}{}
-	for _, u := range out {
-		if u == "" {
-			continue
-		}
-		if _, ok := seen[u]; ok {
-			continue
-		}
-		seen[u] = struct{}{}
-		uniq = append(uniq, u)
-	}
-	return uniq
 }
 
 func (s *Server) handleClearJobs(w http.ResponseWriter, r *http.Request) {
@@ -382,18 +319,18 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) {
-	files, dirs, err := store.GetJobPaths(s.DB, jobID)
+	files, _, err := store.GetJobPaths(s.DB, jobID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if len(files) == 0 && len(dirs) == 0 {
+	if len(files) == 0 {
 		http.Error(w, "no files for job", 404)
 		return
 	}
 
-	// If there's a single file and no dirs, serve it directly (shortcut)
-	if len(files) == 1 && len(dirs) == 0 {
+	// If there's a single file, serve it directly (shortcut)
+	if len(files) == 1 {
 		f := files[0]
 		// Force download with the original filename
 		setDownloadHeaders(w, f.Path)
@@ -402,7 +339,7 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 	}
 
 	// Prepare zip download
-	setDownloadHeaders(w, fmt.Sprintf("job-%d.zip", jobID))
+	setDownloadHeaders(w, "job.zip")
 
 	zw := newZipWriter(w, s.Cfg.WatchDir)
 	defer zw.Close()
@@ -462,22 +399,6 @@ func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp{Job: j, Files: rel, Logs: logs})
-}
-
-// toRelPath trims the watch root prefix and returns a leading slash path.
-func toRelPath(root, abs string) string {
-	rel, err := filepath.Rel(root, abs)
-	if err != nil {
-		return ""
-	}
-	// If the path is outside the watch root, don't leak it.
-	if rel == "." || strings.HasPrefix(rel, "..") {
-		return ""
-	}
-	if !strings.HasPrefix(rel, string(os.PathSeparator)) {
-		rel = string(os.PathSeparator) + rel
-	}
-	return rel
 }
 
 // List persisted logs for a job
@@ -596,47 +517,4 @@ func (s *Server) handleStateWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-}
-
-// zip helpers
-
-type zipWriter struct {
-	zw       *zip.Writer
-	rootPath string
-}
-
-func newZipWriter(w http.ResponseWriter, root string) *zipWriter {
-	return &zipWriter{zw: zip.NewWriter(w), rootPath: root}
-}
-
-func (z *zipWriter) AddFile(path string) error {
-	rel, err := filepath.Rel(z.rootPath, path)
-	if err != nil {
-		return err
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	header, err := zip.FileInfoHeader(info)
-	if err != nil {
-		return err
-	}
-	header.Name = rel
-	header.Method = zip.Deflate
-	w, err := z.zw.CreateHeader(header)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(w, f)
-	return err
-}
-
-func (z *zipWriter) Close() error {
-	return z.zw.Close()
 }
