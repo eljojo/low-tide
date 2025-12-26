@@ -109,7 +109,6 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.handleIndex)
-	mux.HandleFunc("/api/apps", srv.handleApps)
 	mux.HandleFunc("/api/jobs", srv.handleJobs)
 	mux.HandleFunc("/api/jobs/clear", srv.handleClearJobs)
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
@@ -132,25 +131,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(data)
-}
-
-func (s *Server) handleApps(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	type appInfo struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	}
-	var out []appInfo
-	// include an "auto" option first
-	out = append(out, appInfo{ID: "auto", Name: "Auto-detect"})
-	for _, a := range s.Cfg.Apps {
-		out = append(out, appInfo{ID: a.ID, Name: a.Name})
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
 }
 
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
@@ -273,11 +253,25 @@ func (s *Server) handleClearJobs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 	// /api/jobs/{id}/action or /api/jobs/{id}/files/{fileid}
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/jobs/"), "/")
-	if len(parts) < 2 {
-		http.NotFound(w, r)
+	pathSuffix := strings.TrimPrefix(r.URL.Path, "/api/jobs/")
+	parts := strings.Split(pathSuffix, "/")
+
+	if len(parts) == 1 {
+		// GET /api/jobs/{id}
+		idStr := parts[0]
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid id", 400)
+			return
+		}
+		if r.Method == http.MethodGet {
+			s.handleJobSnapshot(w, r, id)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
 	idStr := parts[0]
 	action := parts[1]
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -305,16 +299,14 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		}
 		s.handleZip(w, r, id)
 	case "files":
-		// If URL is /api/jobs/{id}/files -> list (GET) or delete (DELETE)
+		// DEPRECATED: /api/jobs/{id}/files is now part of the snapshot.
+		// Only support DELETE (cleaning up) or specific file downloads.
 		if len(parts) == 2 {
-			switch r.Method {
-			case http.MethodGet:
-				s.handleListJobFiles(w, r, id)
-			case http.MethodDelete:
+			if r.Method == http.MethodDelete {
 				s.handleDeleteFiles(w, r, id)
-			default:
-				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
 			}
+			http.NotFound(w, r)
 			return
 		}
 		// If URL is /api/jobs/{id}/files/{fid} -> serve file/dir download
@@ -425,31 +417,54 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 	}
 }
 
-// List files for a job (paths are returned relative to watch root; no dirs).
-func (s *Server) handleListJobFiles(w http.ResponseWriter, r *http.Request, jobID int64) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID int64) {
+	skipLogs := r.URL.Query().Get("skip_logs") == "1"
+
+	j, err := store.GetJob(s.DB, jobID)
+	if err != nil {
+		http.Error(w, "job not found", 404)
 		return
 	}
+
 	files, err := store.ListJobFiles(s.DB, jobID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
 	rel := make([]store.JobFile, 0, len(files))
 	for _, f := range files {
 		f.Path = toRelPath(s.Cfg.WatchDir, f.Path)
 		if f.Path == "" {
-			// Never leak absolute paths; if we can't make this relative, omit it.
 			continue
 		}
 		rel = append(rel, f)
 	}
-	type resp struct {
-		Files []store.JobFile `json:"files"`
+
+	var logs []store.JobLog
+	if !skipLogs {
+		l, err := store.ListJobLogs(s.DB, jobID, 2000) // generous limit
+		if err == nil {
+			logs = l
+		}
+		
+		// append in-memory logs if any (for running job)
+		if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
+			for _, line := range buf {
+				logs = append(logs, store.JobLog{JobID: jobID, Line: line.Line, When: line.When})
+			}
+		}
+		// if err, we just return empty logs/nil, don't fail the whole snapshot
 	}
+
+	type resp struct {
+		Job   *store.Job      `json:"job"`
+		Files []store.JobFile `json:"files"`
+		Logs  []store.JobLog  `json:"logs,omitempty"`
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp{Files: rel})
+	_ = json.NewEncoder(w).Encode(resp{Job: j, Files: rel, Logs: logs})
 }
 
 // toRelPath trims the watch root prefix and returns a leading slash path.
@@ -479,6 +494,14 @@ func (s *Server) handleListJobLogs(w http.ResponseWriter, r *http.Request, jobID
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
+	// append in-memory logs if any
+	if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
+		for _, line := range buf {
+			logs = append(logs, store.JobLog{JobID: jobID, Line: line.Line, When: line.When})
+		}
+	}
+
 	type resp struct {
 		Logs []store.JobLog `json:"logs"`
 	}

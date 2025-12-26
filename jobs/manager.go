@@ -615,6 +615,18 @@ func (m *Manager) BroadcastState(v interface{}) {
 	m.broadcastState(v)
 }
 
+func (m *Manager) GetJobLogBuffer(jobID int64) []store.LogLine {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.current == nil || m.current.jobID != jobID {
+		return nil
+	}
+	// Return a copy to avoid race
+	out := make([]store.LogLine, len(m.current.logBuf))
+	copy(out, m.current.logBuf)
+	return out
+}
+
 func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 	j, err := store.GetJob(m.DB, jobID)
 	if err != nil {
