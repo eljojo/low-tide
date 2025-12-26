@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -107,16 +106,15 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			store.Job
 			HasFiles  bool `json:"has_files"`
 			FileCount int  `json:"file_count"`
-			DirCount  int  `json:"dir_count"`
 		}
 		out := make([]jobWithFiles, 0, len(jobsList))
 		for _, j := range jobsList {
-			fCount, dCount, err := store.CountJobArtifacts(s.DB, j.ID)
+			fCount, err := store.CountJobArtifacts(s.DB, j.ID)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			out = append(out, jobWithFiles{Job: j, HasFiles: fCount+dCount > 0, FileCount: fCount, DirCount: dCount})
+			out = append(out, jobWithFiles{Job: j, HasFiles: fCount > 0, FileCount: fCount})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(out)
@@ -319,7 +317,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) {
-	files, _, err := store.GetJobPaths(s.DB, jobID)
+	files, err := store.GetJobPaths(s.DB, jobID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -329,16 +327,8 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 		return
 	}
 
-	// If there's a single file, serve it directly (shortcut)
-	if len(files) == 1 {
-		f := files[0]
-		// Force download with the original filename
-		setDownloadHeaders(w, f.Path)
-		http.ServeFile(w, r, f.Path)
-		return
-	}
-
 	// Prepare zip download
+	// TODO: give this a nicer safe name based on job info
 	setDownloadHeaders(w, "job.zip")
 
 	zw := newZipWriter(w, s.Cfg.WatchDir)
@@ -450,13 +440,13 @@ func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Server) deleteJobArtifacts(jobID int64) error {
-	files, dirs, err := store.GetJobPaths(s.DB, jobID)
+	files, err := store.GetJobPaths(s.DB, jobID)
 	if err != nil {
 		return err
 	}
 	var errs []string
 
-	// Delete files first
+	// Delete files
 	for _, f := range files {
 		rel, err := filepath.Rel(s.Cfg.WatchDir, f.Path)
 		if err != nil || strings.HasPrefix(rel, "..") {
@@ -465,21 +455,6 @@ func (s *Server) deleteJobArtifacts(jobID int64) error {
 		}
 		if err := os.Remove(f.Path); err != nil && !os.IsNotExist(err) {
 			errs = append(errs, fmt.Sprintf("remove file %s: %v", f.Path, err))
-		}
-	}
-
-	// Then dirs, deepest first
-	sort.Slice(dirs, func(i, j int) bool {
-		return len(dirs[i].Path) > len(dirs[j].Path)
-	})
-	for _, d := range dirs {
-		rel, err := filepath.Rel(s.Cfg.WatchDir, d.Path)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			errs = append(errs, fmt.Sprintf("refuse to remove dir outside watch dir: %s", d.Path))
-			continue
-		}
-		if err := os.RemoveAll(d.Path); err != nil && !os.IsNotExist(err) {
-			errs = append(errs, fmt.Sprintf("remove dir %s: %v", d.Path, err))
 		}
 	}
 

@@ -4,10 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"net/url"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -26,11 +24,6 @@ func isSubpath(parent, child string) bool {
 		return false
 	}
 	return rel != "." && !strings.HasPrefix(rel, "..")
-}
-
-func DirIDFromPath(p string) int64 {
-	// Deterministic ID derived from path so we can refer to dirs by ID
-	return int64(crc32.ChecksumIEEE([]byte(p)))
 }
 
 // JobStatus represents the lifecycle state of a job.
@@ -64,13 +57,6 @@ type JobFile struct {
 	JobID     int64     `json:"job_id"`
 	Path      string    `json:"path"`
 	SizeBytes int64     `json:"size_bytes"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type JobDir struct {
-	ID        int64     `json:"id"`
-	JobID     int64     `json:"job_id"`
-	Path      string    `json:"path"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -299,60 +285,25 @@ func DeleteJobFileByPath(db *sql.DB, jobID int64, path string) error {
 	return err
 }
 
-func GetJobPaths(db *sql.DB, jobID int64) ([]JobFile, []JobDir, error) {
+func GetJobPaths(db *sql.DB, jobID int64) ([]JobFile, error) {
 	rowsF, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC`, jobID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer rowsF.Close()
 	var files []JobFile
 	for rowsF.Next() {
 		var f JobFile
 		if err := rowsF.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		files = append(files, f)
 	}
 	if err := rowsF.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Derive directories from recorded files instead of relying on job_dirs.
-	// This keeps the DB focused on files and avoids noise like a generic
-	// "Albums" parent showing up as the artifact root.
-	if len(files) == 0 {
-		return files, nil, nil
-	}
-	// collect parent dirs and earliest created time per dir
-	parentTimes := make(map[string]time.Time)
-	for _, f := range files {
-		d := filepath.Dir(f.Path)
-		if t, ok := parentTimes[d]; !ok || f.CreatedAt.Before(t) {
-			parentTimes[d] = f.CreatedAt
-		}
-	}
-	// build unique parent list
-	uniq := make([]string, 0, len(parentTimes))
-	for p := range parentTimes {
-		uniq = append(uniq, p)
-	}
-	// collapse to deepest-owned dirs (remove ancestors)
-	sort.Slice(uniq, func(i, j int) bool { return depth(uniq[i]) > depth(uniq[j]) })
-	var owned []JobDir
-	for _, p := range uniq {
-		skip := false
-		for _, od := range owned {
-			if isSubpath(p, od.Path) {
-				skip = true
-				break
-			}
-		}
-		if !skip {
-			owned = append(owned, JobDir{JobID: jobID, Path: p, CreatedAt: parentTimes[p]})
-		}
-	}
-
-	return files, owned, nil
+	return files, nil
 }
 
 func GetJobFileByID(db *sql.DB, id int64) (*JobFile, error) {
@@ -489,17 +440,12 @@ func AppendSummaryLine(db *sql.DB, jobID int64, line string, when time.Time) err
 	return err
 }
 
-func CountJobArtifacts(db *sql.DB, jobID int64) (fileCount int, dirCount int, err error) {
+func CountJobArtifacts(db *sql.DB, jobID int64) (fileCount int, err error) {
 	// Count files directly and derive directories from file parents.
 	row := db.QueryRow(`SELECT COUNT(1) FROM job_files WHERE job_id = ?`, jobID)
 	if err = row.Scan(&fileCount); err != nil {
 		return
 	}
-	_, dirs, err := GetJobPaths(db, jobID)
-	if err != nil {
-		return
-	}
-	dirCount = len(dirs)
 	return
 }
 
@@ -527,16 +473,6 @@ func ListJobFiles(db *sql.DB, jobID int64) ([]JobFile, error) {
 		files = append(files, f)
 	}
 	return files, rows.Err()
-}
-
-func ListJobDirs(db *sql.DB, jobID int64) ([]JobDir, error) {
-	// Return derived directories (parents of recorded files) instead of reading
-	// the job_dirs table.
-	_, dirs, err := GetJobPaths(db, jobID)
-	if err != nil {
-		return nil, err
-	}
-	return dirs, nil
 }
 
 func DeleteJobLogs(db *sql.DB, jobID int64) error {
