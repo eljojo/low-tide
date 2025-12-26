@@ -41,6 +41,21 @@
     background: #041b26;
     border-radius: 60% 40% 40% 70% / 50% 60% 40% 50%;
   }
+  #global-indicator {
+    display: none; /* hidden by default */
+    width: 14px;
+    height: 14px;
+    background: #021016;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0,0,0,0.6);
+    animation: pulse-global 1.8s infinite ease-in-out;
+  }
+  @keyframes pulse-global {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.7; }
+  }
+
   main {
     flex: 1;
     padding: 1.5rem;
@@ -167,12 +182,25 @@
     letter-spacing: 0.07em;
   }
   .status-queued { background: rgba(0,192,163,0.15); color: var(--accent2); }
-  .status-running { background: rgba(0,170,255,0.12); color: #73d1ff; }
-  .job-item.running { box-shadow: 0 0 8px rgba(115,209,255,0.12); position: relative; }
-  .job-item.running::after { content: ""; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width:10px; height:10px; border-radius:50%; background: rgba(115,209,255,0.9); box-shadow: 0 0 8px rgba(115,209,255,0.8); animation: pulse 1.6s infinite; }
+  .status-running { 
+    background: rgba(0,170,255,0.12); color: #73d1ff; 
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
   @keyframes pulse { 0% { transform: translateY(-50%) scale(0.9); opacity:0.7 } 50% { transform: translateY(-50%) scale(1.1); opacity:1 } 100% { transform: translateY(-50%) scale(0.9); opacity:0.7 } }
   .status-success { background: rgba(0,192,163,0.2); color: #54f29b; }
   .status-failed  { background: rgba(255,75,92,0.2); color: #ff9aa6; }
+  
+  .job-item .indicator {
+    display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(115,209,255,0.9);
+    box-shadow: 0 0 8px rgba(115,209,255,0.8);
+    animation: pulse-local 1.6s infinite;
+  }
+  @keyframes pulse-local { 0% { opacity:0.7 } 50% { opacity:1 } 100% { opacity:0.7 } }
+
   .job-actions {
     display: flex;
     flex-wrap: wrap;
@@ -220,7 +248,10 @@
 <body>
 <header>
   <div class="blob"></div>
-  <div>Low Tide</div>
+  <a href="/" style="text-decoration: none; color: inherit; cursor: pointer;">
+    <h1 style="font-size: 1.2rem; margin: 0;">Low Tide</h1>
+  </a>
+  <div id="global-indicator"></div>
 </header>
 
 <main>
@@ -369,13 +400,21 @@ https://example.com/file2.mp3"></textarea>
       archivedSec.style.display = 'none';
       toggleBtn.textContent = '▸';
     }
+
+    // Check for any running jobs to show global indicator
+    const isAnyJobRunning = allJobs.some(job => job.status === 'running');
+    const globalIndicator = document.getElementById('global-indicator');
+    if (isAnyJobRunning) {
+      globalIndicator.style.display = 'block';
+    } else {
+      globalIndicator.style.display = 'none';
+    }
   }
   
   function createJobItem(job) {
     const div = document.createElement('div');
     div.className = 'job-item';
     if (STATE.selectedJobId === job.id) div.classList.add('selected');
-    if (job.status === 'running') div.classList.add('running');
     
     const header = document.createElement('div');
     header.className = 'job-header';
@@ -386,7 +425,13 @@ https://example.com/file2.mp3"></textarea>
     
     const status = document.createElement('div');
     status.className = 'status-pill status-' + job.status;
-    status.textContent = job.status.toUpperCase();
+
+    if (job.status === 'running') {
+      const indicator = document.createElement('span');
+      indicator.className = 'indicator';
+      status.appendChild(indicator);
+    }
+    status.appendChild(document.createTextNode(job.status.toUpperCase()));
     
     header.appendChild(left);
     header.appendChild(status);
