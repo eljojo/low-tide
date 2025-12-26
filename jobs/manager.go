@@ -500,6 +500,11 @@ func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
 }
 
 func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string) error {
+	// Strip trailing slash if configured for this app
+	if app.StripTrailingSlash && strings.HasSuffix(url, "/") {
+		url = strings.TrimSuffix(url, "/")
+	}
+
 	args := make([]string, 0, len(app.Args))
 	for _, a := range app.Args {
 		args = append(args, strings.ReplaceAll(a, "%u", url))

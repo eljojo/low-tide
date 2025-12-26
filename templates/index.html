@@ -762,7 +762,7 @@ https://example.com/file2.mp3"></textarea>
 
   document.getElementById('action-delete').addEventListener('click', async () => {
       if (!STATE.selectedJobId) return;
-      if (!confirm('Delete job?')) return;
+      if (!confirm('Delete job? ⚠️ this will also delete the files')) return;
       const id = STATE.selectedJobId;
       await fetch(`/api/jobs/${id}/delete`, { method: 'POST' });
       // Delete locally

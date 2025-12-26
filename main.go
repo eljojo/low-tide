@@ -347,7 +347,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		return
 	case "delete":
 		// Delete = archive + delete files + delete logs
-		if r.Method != http.MethodPost {
+		if r.Method != http.MethodPost && r.Method != http.MethodDelete {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
@@ -368,6 +368,10 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		if err := store.DeleteJobLogs(s.DB, id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
+		}
+		if err := store.DeleteJob(s.DB, id); err != nil {
+			http.Error(w, err.Error(), 500)
+			return 
 		}
 		// broadcast state change
 		s.Mgr.BroadcastJobSnapshot(id)

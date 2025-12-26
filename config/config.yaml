@@ -10,6 +10,7 @@ apps:
   - id: "tidal-dl-ng"
     name: "tidal-dl-ng"
     command: "tidal-dl-ng"
+    strip_trailing_slash: true
     args: ["dl", "%u"]
     regex: '^https?://(www\.|listen\.)?tidal\.com/'
   - id: "auto"

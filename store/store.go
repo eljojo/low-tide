@@ -566,3 +566,8 @@ func DeleteJobFilesAndDirs(db *sql.DB, jobID int64) error {
 	}
 	return nil
 }
+
+func DeleteJob(db *sql.DB, jobID int64) error {
+	_, err := db.Exec(`DELETE FROM jobs WHERE id = ?`, jobID)
+	return err
+}
