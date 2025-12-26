@@ -552,7 +552,7 @@ https://example.com/file2.mp3"></textarea>
 
       const left = document.createElement('div');
       const title = job.title && job.title !== '' ? job.title : (job.urls || []).join(' ');
-      left.innerHTML = `${job.app_id}</span> &middot; ${title}`;
+      left.innerText = title;
       header.appendChild(left);
 
       const status = document.createElement('div');
@@ -644,7 +644,7 @@ https://example.com/file2.mp3"></textarea>
       const pre = document.getElementById('log-pre');
       pre.textContent = '';
       if (data.logs && Array.isArray(data.logs)) {
-        data.logs.forEach(l => { pre.textContent += l.line + '
+        data.logs.forEach(l => { pre.textContent += l.line + '\n'; });
       }
     } catch (err) {
       console.error('fetchJobLogs', err);
@@ -652,36 +652,36 @@ https://example.com/file2.mp3"></textarea>
   }
 
   function updateJobActions(job, fileCount) {
-      if (!job) return;
-      const actionDownload = document.getElementById('action-download');
-      const actionRetry = document.getElementById('action-retry');
-      const actionArchive = document.getElementById('action-archive');
-      const openSource = document.getElementById('job-open-source');
-      
-      if (fileCount === 0) {
-        actionDownload.style.display = 'none';
-      } else if (fileCount === 1) {
-        actionDownload.style.display = '';
-        actionDownload.textContent = 'Download';
-        actionDownload.onclick = () => { fetch('/api/jobs/' + job.id + '/files').then(r=>r.json()).then(d=>{ if(d.files && d.files[0]) window.location = '/api/jobs/' + job.id + '/files/' + d.files[0].id; }) };
-      } else {
-        actionDownload.style.display = '';
-        actionDownload.textContent = 'Download ZIP';
-        actionDownload.onclick = () => { window.location = '/api/jobs/' + job.id + '/zip' };
-      }
-      
-      if (job.status === 'failed') actionRetry.style.display = '';
-      else actionRetry.style.display = 'none';
-      
-      if (job.archived) actionArchive.style.display = 'none';
-      else actionArchive.style.display = '';
-      
-      if (job.original_url) {
-        openSource.onclick = () => window.open(job.original_url, '_blank');
-        openSource.style.display = '';
-      } else {
-        openSource.style.display = 'none';
-      }
+    if (!job) return;
+    const actionDownload = document.getElementById('action-download');
+    const actionRetry = document.getElementById('action-retry');
+    const actionArchive = document.getElementById('action-archive');
+    const openSource = document.getElementById('job-open-source');
+    
+    if (fileCount === 0) {
+      actionDownload.style.display = 'none';
+    } else if (fileCount === 1) {
+      actionDownload.style.display = '';
+      actionDownload.textContent = 'Download';
+      actionDownload.onclick = () => { fetch('/api/jobs/' + job.id + '/files').then(r=>r.json()).then(d=>{ if(d.files && d.files[0]) window.location = '/api/jobs/' + job.id + '/files/' + d.files[0].id; }) };
+    } else {
+      actionDownload.style.display = '';
+      actionDownload.textContent = 'Download ZIP';
+      actionDownload.onclick = () => { window.location = '/api/jobs/' + job.id + '/zip' };
+    }
+    
+    if (job.status === 'failed') actionRetry.style.display = '';
+    else actionRetry.style.display = 'none';
+    
+    if (job.archived) actionArchive.style.display = 'none';
+    else actionArchive.style.display = '';
+    
+    if (job.original_url) {
+      openSource.onclick = () => window.open(job.original_url, '_blank');
+      openSource.style.display = '';
+    } else {
+      openSource.style.display = 'none';
+    }
   }
 
   function renderFilesList(jobId, files) {
