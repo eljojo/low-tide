@@ -702,8 +702,8 @@ https://example.com/file2.mp3"></textarea>
                       STATE.consoleCollapsed = true;
                       renderSelectedJobPane();
                   }
-              } else if (msg.job.status === 'running' && !STATE.selectedJobId) {
-                  // If new running job and nothing selected, select it
+              } else if (msg.job.status === 'running') {
+                  // If new running job, select it
                   selectJob(msg.job.id);
               }
           }
