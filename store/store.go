@@ -50,6 +50,8 @@ type Job struct {
 	Archived     bool       `json:"archived"`
 	OriginalURL  string     `json:"original_url"`
 	Title        string     `json:"title"`
+	Logs         string     `json:"logs,omitempty"`
+	Files        []JobFile  `json:"files,omitempty"`
 }
 
 type JobFile struct {
@@ -58,13 +60,6 @@ type JobFile struct {
 	Path      string    `json:"path"`
 	SizeBytes int64     `json:"size_bytes"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-type JobLog struct {
-	ID    int64     `json:"id"`
-	JobID int64     `json:"job_id"`
-	Line  string    `json:"line"`
-	When  time.Time `json:"when"`
 }
 
 // LogLine represents an in-memory log entry to persist.
@@ -89,7 +84,8 @@ func Init(db *sql.DB) error {
             finished_at DATETIME,
             archived INTEGER NOT NULL DEFAULT 0,
             original_url TEXT,
-            title TEXT
+            title TEXT,
+            logs TEXT
         );`,
 		`CREATE TABLE IF NOT EXISTS job_files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,12 +95,6 @@ func Init(db *sql.DB) error {
             created_at DATETIME NOT NULL
         );`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_job_files_job_path ON job_files(job_id, path);`,
-		`CREATE TABLE IF NOT EXISTS job_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-            line TEXT NOT NULL,
-            when_ts DATETIME NOT NULL
-        );`,
 	}
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {
@@ -115,7 +105,10 @@ func Init(db *sql.DB) error {
 	if err := ensureColumn(db, "jobs", "original_url", "TEXT"); err != nil {
 		return err
 	}
-	return ensureColumn(db, "jobs", "title", "TEXT")
+	if err := ensureColumn(db, "jobs", "title", "TEXT"); err != nil {
+		return err
+	}
+	return ensureColumn(db, "jobs", "logs", "TEXT")
 }
 
 func ensureColumn(db *sql.DB, table, column, colType string) error {
@@ -178,23 +171,31 @@ func parseURLTitle(raw string) (string, error) {
 	return p, nil
 }
 
-func GetJob(db *sql.DB, id int64) (*Job, error) {
-	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs WHERE id = ?`, id)
+func scanJob(row interface {
+	Scan(dest ...interface{}) error
+}) (*Job, error) {
 	var j Job
 	var urlStr string
 	var status string
 	var archivedInt int
-	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title); err != nil {
+	var logs sql.NullString
+	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title, &logs); err != nil {
 		return nil, err
 	}
 	j.Status = JobStatus(status)
 	j.Archived = archivedInt != 0
 	j.URL = urlStr
+	j.Logs = logs.String
 	return &j, nil
 }
 
+func GetJob(db *sql.DB, id int64) (*Job, error) {
+	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE id = ?`, id)
+	return scanJob(row)
+}
+
 func ListJobs(db *sql.DB, limit int) ([]Job, error) {
-	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
+	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs`
 	q += ` ORDER BY created_at DESC`
 	if limit > 0 {
 		q += ` LIMIT ?`
@@ -214,17 +215,11 @@ func ListJobs(db *sql.DB, limit int) ([]Job, error) {
 
 	var out []Job
 	for rows.Next() {
-		var j Job
-		var urlStr string
-		var status string
-		var archivedInt int
-		if err := rows.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title); err != nil {
+		j, err := scanJob(rows)
+		if err != nil {
 			return nil, err
 		}
-		j.Status = JobStatus(status)
-		j.Archived = archivedInt != 0
-		j.URL = urlStr
-		out = append(out, j)
+		out = append(out, *j)
 	}
 	return out, rows.Err()
 }
@@ -255,7 +250,7 @@ func MarkJobFailed(db *sql.DB, id int64, finishedAt time.Time, msg string) error
 }
 
 func ResetJobForRetry(db *sql.DB, id int64) error {
-	_, err := db.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL WHERE id=?`, id)
+	_, err := db.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL, logs=NULL WHERE id=?`, id)
 	return err
 }
 
@@ -274,6 +269,11 @@ func UpdateJobTitle(db *sql.DB, id int64, title string) error {
 	return err
 }
 
+func UpdateJobLogs(db *sql.DB, id int64, logs string) error {
+	_, err := db.Exec(`UPDATE jobs SET logs = ? WHERE id = ?`, logs, id)
+	return err
+}
+
 func InsertJobFile(db *sql.DB, jobID int64, path string, size int64, createdAt time.Time) error {
 	// Use UPSERT semantics so concurrent inserts by path/job coalesce atomically.
 	_, err := db.Exec(`INSERT INTO job_files (job_id, path, size_bytes, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(job_id, path) DO UPDATE SET size_bytes = excluded.size_bytes, created_at = excluded.created_at`, jobID, path, size, createdAt)
@@ -283,27 +283,6 @@ func InsertJobFile(db *sql.DB, jobID int64, path string, size int64, createdAt t
 func DeleteJobFileByPath(db *sql.DB, jobID int64, path string) error {
 	_, err := db.Exec(`DELETE FROM job_files WHERE job_id = ? AND path = ?`, jobID, path)
 	return err
-}
-
-func GetJobPaths(db *sql.DB, jobID int64) ([]JobFile, error) {
-	rowsF, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC`, jobID)
-	if err != nil {
-		return nil, err
-	}
-	defer rowsF.Close()
-	var files []JobFile
-	for rowsF.Next() {
-		var f JobFile
-		if err := rowsF.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
-			return nil, err
-		}
-		files = append(files, f)
-	}
-	if err := rowsF.Err(); err != nil {
-		return nil, err
-	}
-
-	return files, nil
 }
 
 func GetJobFileByID(db *sql.DB, id int64) (*JobFile, error) {
@@ -357,9 +336,6 @@ func ListJobFilesByPath(db *sql.DB, path string) ([]JobFile, error) {
 	return out, rows.Err()
 }
 
-// Deprecated: job_dirs is no longer authoritative. Directories are derived
-// from job_files (parents of recorded files). This function remains for
-// compatibility but will return an error indicating it's unsupported.
 // JobFileExists checks whether a file path already exists for the job.
 func JobFileExists(db *sql.DB, jobID int64, path string) (bool, error) {
 	row := db.QueryRow(`SELECT COUNT(1) FROM job_files WHERE job_id = ? AND path = ?`, jobID, path)
@@ -368,76 +344,6 @@ func JobFileExists(db *sql.DB, jobID int64, path string) (bool, error) {
 		return false, err
 	}
 	return cnt > 0, nil
-}
-
-func ListJobLogs(db *sql.DB, jobID int64, limit int) ([]JobLog, error) {
-	q := `SELECT id, job_id, line, when_ts FROM job_logs WHERE job_id = ? ORDER BY id ASC`
-	if limit > 0 {
-		q += ` LIMIT ?`
-	}
-
-	var rows *sql.Rows
-	var err error
-	if limit > 0 {
-		rows, err = db.Query(q, jobID, limit)
-	} else {
-		rows, err = db.Query(q, jobID)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []JobLog
-	for rows.Next() {
-		var log JobLog
-		if err := rows.Scan(&log.ID, &log.JobID, &log.Line, &log.When); err != nil {
-			return nil, err
-		}
-		out = append(out, log)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func InsertJobLogLines(db *sql.DB, jobID int64, lines []LogLine) error {
-	if len(lines) == 0 {
-		return nil
-	}
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	stmt, err := tx.Prepare(`INSERT INTO job_logs (job_id, line, when_ts) VALUES (?, ?, ?)`)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	defer stmt.Close()
-	for _, entry := range lines {
-		when := entry.When
-		if when.IsZero() {
-			when = time.Now()
-		}
-		if _, err := stmt.Exec(jobID, entry.Line, when); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// AppendSummaryLine persists a final summary line that should appear at the end
-// of the job console. This is used to write a final success/failure message
-// from the server into the job_logs table so clients see it as normal log output.
-func AppendSummaryLine(db *sql.DB, jobID int64, line string, when time.Time) error {
-	if when.IsZero() {
-		when = time.Now()
-	}
-	_, err := db.Exec(`INSERT INTO job_logs (job_id, line, when_ts) VALUES (?, ?, ?)`, jobID, line, when)
-	return err
 }
 
 func CountJobArtifacts(db *sql.DB, jobID int64) (fileCount int, err error) {
@@ -475,16 +381,6 @@ func ListJobFiles(db *sql.DB, jobID int64) ([]JobFile, error) {
 	return files, rows.Err()
 }
 
-func DeleteJobLogs(db *sql.DB, jobID int64) error {
-	_, err := db.Exec(`DELETE FROM job_logs WHERE job_id = ?`, jobID)
-	return err
-}
-
-func DeleteLogsForArchivedJobs(db *sql.DB) error {
-	_, err := db.Exec(`DELETE FROM job_logs WHERE job_id IN (SELECT id FROM jobs WHERE archived = 1)`)
-	return err
-}
-
 func UnarchiveJob(db *sql.DB, id int64) error {
 	_, err := db.Exec(`UPDATE jobs SET archived = 0 WHERE id = ?`, id)
 	return err
@@ -500,5 +396,22 @@ func DeleteJobFilesAndDirs(db *sql.DB, jobID int64) error {
 
 func DeleteJob(db *sql.DB, jobID int64) error {
 	_, err := db.Exec(`DELETE FROM jobs WHERE id = ?`, jobID)
+	return err
+}
+
+// GetJobPaths is a synonym for ListJobFiles, kept for compatibility.
+func GetJobPaths(db *sql.DB, jobID int64) ([]JobFile, error) {
+	return ListJobFiles(db, jobID)
+}
+
+// DeleteJobLogs clears the logs column for a job.
+func DeleteJobLogs(db *sql.DB, jobID int64) error {
+	_, err := db.Exec(`UPDATE jobs SET logs = NULL WHERE id = ?`, jobID)
+	return err
+}
+
+// DeleteLogsForArchivedJobs clears logs for all archived jobs.
+func DeleteLogsForArchivedJobs(db *sql.DB) error {
+	_, err := db.Exec(`UPDATE jobs SET logs = NULL WHERE archived = 1`)
 	return err
 }

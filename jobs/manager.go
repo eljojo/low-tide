@@ -18,6 +18,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"low-tide/config"
+	"low-tide/internal/chars"
 	"low-tide/store"
 )
 
@@ -53,10 +54,9 @@ type runningJob struct {
 }
 
 type JobSnapshotEvent struct {
-	Type  string          `json:"type"`
-	Job   *store.Job      `json:"job,omitempty"`
-	Files []store.JobFile `json:"files,omitempty"`
-	At    time.Time       `json:"updated_at"`
+	Type string     `json:"type"`
+	Job  *store.Job `json:"job,omitempty"`
+	At   time.Time  `json:"updated_at"`
 }
 
 type JobLogEvent struct {
@@ -116,9 +116,8 @@ func (m *Manager) filesPublisher() {
 	defer t.Stop()
 	for range t.C {
 		type workItem struct {
-			jobID    int64
-			seq      uint64
-			lastSent int64 // unused in simplified logic, or we can track hash
+			jobID int64
+			seq   uint64
 		}
 
 		// NOTE: avoid data races by only reading/writing jobChange fields while
@@ -130,8 +129,8 @@ func (m *Manager) filesPublisher() {
 				continue
 			}
 			items = append(items, workItem{
-				jobID:    id,
-				seq:      ch.seq,
+				jobID: id,
+				seq:   ch.seq,
 			})
 		}
 		m.jobChangesMu.Unlock()
@@ -494,7 +493,12 @@ func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) erro
 
 func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
 	if len(ctx.logBuf) > 0 {
-		_ = store.InsertJobLogLines(m.DB, jobID, ctx.logBuf)
+		var lines []string
+		for _, entry := range ctx.logBuf {
+			lines = append(lines, entry.Line)
+		}
+		joined := strings.Join(lines, chars.NewLine)
+		_ = store.UpdateJobLogs(m.DB, jobID, joined)
 	}
 	m.mu.Lock()
 	if m.current == ctx {
@@ -517,6 +521,7 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 	cmd := exec.Command(app.Command, args...)
 	cmd.Env = os.Environ()
 	cmd.Dir = m.Cfg.WatchDir
+	// TODO: this probably needs some shell escaping protection
 	cmdLine := fmt.Sprintf("%s %s", app.Command, strings.Join(args, " "))
 	log.Printf("job %d: running command: (dir=%s) %s", rj.jobID, cmd.Dir, cmdLine)
 	firstLine := fmt.Sprintf("$ %s (dir=%s)", cmdLine, cmd.Dir)
@@ -654,7 +659,18 @@ func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 		}
 		relFiles = append(relFiles, f)
 	}
+	j.Files = relFiles
 
-	ev := JobSnapshotEvent{Type: "job_snapshot", Job: j, Files: relFiles, At: time.Now()}
+	m.mu.Lock()
+	if m.current != nil && m.current.jobID == jobID {
+		var lines []string
+		for _, entry := range m.current.logBuf {
+			lines = append(lines, entry.Line)
+		}
+		j.Logs = strings.Join(lines, chars.NewLine)
+	}
+	m.mu.Unlock()
+
+	ev := JobSnapshotEvent{Type: "job_snapshot", Job: j, At: time.Now()}
 	m.BroadcastState(ev)
 }

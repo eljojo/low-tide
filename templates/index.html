@@ -345,15 +345,6 @@ https://example.com/file2.mp3"></textarea>
   // GIANT OBJECT STATE
   const STATE = {
     jobs: {}, // Map<id, JobObject>
-    // JobObject structure:
-    // {
-    //   ...metadata (id, status, title, etc),
-    //   files: [],
-    //   logs: [],
-    //   logsFetchStatus: 'none' | 'fetching' | 'done',
-    //   filesFetchStatus: 'none' | 'fetching' | 'done',
-    //   dirty: false // if true, needs re-render in list
-    // }
     selectedJobId: null,
     showArchived: false,
     consoleCollapsed: true,
@@ -489,8 +480,6 @@ https://example.com/file2.mp3"></textarea>
     
     if (files.length === 0) {
       el.innerHTML = '<em>No files recorded for this job.</em>';
-      // If running, hide the area (it will pop open when files arrive)
-      // If finished/failed, show it so they see "No files"
       if (job.status === 'running') {
           filesAreaInner.classList.remove('expanded');
       } else {
@@ -501,8 +490,6 @@ https://example.com/file2.mp3"></textarea>
     
     filesAreaInner.classList.add('expanded');
     
-    // Generate HTML for files
-    // (Using same logic as before: grouping by common prefix)
     el.innerHTML = '';
     
     if (files.length === 1) {
@@ -570,18 +557,10 @@ https://example.com/file2.mp3"></textarea>
       const pre = document.getElementById('log-pre');
       const logView = document.getElementById('log-view');
       
-      // If we have logs in state, join them
-      // NOTE: Logs might be incomplete if we haven't fetched them all yet.
-      // But we are appending to logs array in handleStateMessage.
-      
-      if (!job.logs || job.logs.length === 0) {
+      if (!job.logs || job.logs === '') {
           pre.textContent = 'No logs.';
       } else {
-          // Optimization: Only update textContent if length changed significantly or completely different?
-          // For now, just join.
-          // To improve perf, we can store the "rendered text" in the job object too?
-          // Or just be simple.
-          pre.textContent = job.logs.map(l => l.line).join('\n');
+          pre.textContent = job.logs;
       }
       
       // Auto-scroll if running
@@ -631,10 +610,8 @@ https://example.com/file2.mp3"></textarea>
         const res = await fetch('/api/jobs');
         const jobs = await res.json();
         
-        // Populate giant object
         jobs.forEach(j => updateJobState(j));
         
-        // If there is a current running job, auto-select it
         const runningJob = jobs.find(j => j.status === 'running');
         if (runningJob) {
             selectJob(runningJob.id);
@@ -648,11 +625,10 @@ https://example.com/file2.mp3"></textarea>
   }
 
   async function selectJob(id) {
-      if (STATE.selectedJobId === id) return; // already selected
+      if (STATE.selectedJobId === id) return; 
       
       STATE.selectedJobId = id;
       
-      // Auto-collapse based on status
       const job = STATE.jobs[id];
       if (job && job.status === 'success') {
           STATE.consoleCollapsed = true;
@@ -666,44 +642,28 @@ https://example.com/file2.mp3"></textarea>
       // But we can render what we have immediately
       render();
       
-      // Fetch full details (snapshot + logs)
       await fetchJobDetails(id);
   }
 
   async function fetchJobDetails(id) {
-      // Fetch snapshot (includes files AND logs by default now)
       try {
-          // skip_logs=0 is default logic if omitted, but being explicit is fine.
-          // logic: !skipLogs -> fetch logs.
           const res = await fetch(`/api/jobs/${id}`);
           if (res.ok) {
-              const data = await res.json();
-              if (data.job) {
-                  updateJobState(data.job, data.files, data.logs);
-                  if (data.logs && STATE.selectedJobId === id) {
-                      render(); // re-render logs
-                  }
+              const job = await res.json();
+              if (job) {
+                  updateJobState(job);
               }
           }
       } catch (e) { console.error(e); }
   }
 
-  function updateJobState(jobData, filesData, logsData) {
-      const id = jobData.id;
+  function updateJobState(job) {
+      const id = job.id;
       if (!STATE.jobs[id]) {
-          STATE.jobs[id] = { logs: [], files: [] };
+          STATE.jobs[id] = { logs: "", files: [] };
       }
       
-      // Merge metadata
-      STATE.jobs[id] = { ...STATE.jobs[id], ...jobData };
-      
-      if (filesData) {
-          STATE.jobs[id].files = filesData;
-      }
-      
-      if (logsData) {
-          STATE.jobs[id].logs = logsData;
-      }
+      STATE.jobs[id] = { ...STATE.jobs[id], ...job };
       
       // If status changed to running, ensure we are "watching" it? 
       // The websocket handles updates.
@@ -728,9 +688,8 @@ https://example.com/file2.mp3"></textarea>
       if (msg.type === 'job_snapshot') {
           if (msg.job) {
               const oldStatus = STATE.jobs[msg.job.id] ? STATE.jobs[msg.job.id].status : null;
-              updateJobState(msg.job, msg.files);
+              updateJobState(msg.job);
               
-              // If this job is currently selected
               if (msg.job.id === STATE.selectedJobId) {
                   // If transitioning running -> success, collapse console
                   if (oldStatus === 'running' && msg.job.status === 'success') {
@@ -745,9 +704,9 @@ https://example.com/file2.mp3"></textarea>
       } else if (msg.type === 'job_log') {
           const job = STATE.jobs[msg.job_id];
           if (job) {
-              // Append log
-              if (!job.logs) job.logs = [];
-              job.logs.push({ line: msg.line, when: msg.when });
+              if (job.logs === undefined || job.logs === null) job.logs = "";
+              if (job.logs !== "") job.logs += String.fromCharCode(10); // new line
+              job.logs += msg.line;
               
               // Only re-render if this is the selected job
               if (STATE.selectedJobId === msg.job_id) {
@@ -781,7 +740,7 @@ https://example.com/file2.mp3"></textarea>
   
   document.getElementById('toggle-console').addEventListener('click', () => {
       STATE.consoleCollapsed = !STATE.consoleCollapsed;
-      renderSelectedJobPane(); // re-renders console state
+      renderSelectedJobPane(); 
   });
 
   document.getElementById('action-retry').addEventListener('click', async () => {
@@ -800,13 +759,11 @@ https://example.com/file2.mp3"></textarea>
       if (!confirm('Delete job? ⚠️ this will also delete the files')) return;
       const id = STATE.selectedJobId;
       await fetch(`/api/jobs/${id}/delete`, { method: 'POST' });
-      // Delete locally
       delete STATE.jobs[id];
       STATE.selectedJobId = null;
       render();
   });
   
-  // Helpers
   function humanSize(bytes) {
     if (!bytes && bytes !== 0) return '';
     const b = Number(bytes);
@@ -819,7 +776,6 @@ https://example.com/file2.mp3"></textarea>
     return Math.round(gb) + ' GB';
   }
 
-  // Boot
   loadInitialData();
 
 </script>

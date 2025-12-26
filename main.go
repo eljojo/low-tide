@@ -17,6 +17,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"low-tide/config"
+	"low-tide/internal/chars"
 	"low-tide/jobs"
 	"low-tide/store"
 )
@@ -342,8 +343,6 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 }
 
 func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID int64) {
-	skipLogs := r.URL.Query().Get("skip_logs") == "1"
-
 	j, err := store.GetJob(s.DB, jobID)
 	if err != nil {
 		http.Error(w, "job not found", 404)
@@ -364,31 +363,22 @@ func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID
 		}
 		rel = append(rel, f)
 	}
+	j.Files = rel
 
-	var logs []store.JobLog
-	if !skipLogs {
-		l, err := store.ListJobLogs(s.DB, jobID, 2000) // generous limit
-		if err == nil {
-			logs = l
+	// append in-memory logs if any (for running job)
+	if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
+		var lines []string
+		if j.Logs != "" {
+			lines = append(lines, j.Logs)
 		}
-
-		// append in-memory logs if any (for running job)
-		if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
-			for _, line := range buf {
-				logs = append(logs, store.JobLog{JobID: jobID, Line: line.Line, When: line.When})
-			}
+		for _, entry := range buf {
+			lines = append(lines, entry.Line)
 		}
-		// if err, we just return empty logs/nil, don't fail the whole snapshot
-	}
-
-	type resp struct {
-		Job   *store.Job      `json:"job"`
-		Files []store.JobFile `json:"files"`
-		Logs  []store.JobLog  `json:"logs,omitempty"`
+		j.Logs = strings.Join(lines, chars.NewLine)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp{Job: j, Files: rel, Logs: logs})
+	_ = json.NewEncoder(w).Encode(j)
 }
 
 // List persisted logs for a job
@@ -397,21 +387,28 @@ func (s *Server) handleListJobLogs(w http.ResponseWriter, r *http.Request, jobID
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	logs, err := store.ListJobLogs(s.DB, jobID, 1000)
+	j, err := store.GetJob(s.DB, jobID)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, "job not found", 404)
 		return
 	}
 
+	logs := j.Logs
+
 	// append in-memory logs if any
 	if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
-		for _, line := range buf {
-			logs = append(logs, store.JobLog{JobID: jobID, Line: line.Line, When: line.When})
+		var lines []string
+		if logs != "" {
+			lines = append(lines, logs)
 		}
+		for _, entry := range buf {
+			lines = append(lines, entry.Line)
+		}
+		logs = strings.Join(lines, chars.NewLine)
 	}
 
 	type resp struct {
-		Logs []store.JobLog `json:"logs"`
+		Logs string `json:"logs"`
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp{Logs: logs})
