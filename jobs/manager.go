@@ -19,6 +19,7 @@ import (
 
 	"low-tide/config"
 	"low-tide/internal/chars"
+	"low-tide/internal/terminal"
 	"low-tide/store"
 )
 
@@ -33,7 +34,7 @@ type Manager struct {
 	current *runningJob
 
 	// In-memory log buffer for the past 10 jobs
-	recentLogs      map[int64][]byte
+	recentLogs      map[int64]*terminal.Terminal
 	recentJobIDs    []int64
 	recentLogsMutex sync.Mutex
 
@@ -45,7 +46,6 @@ type Manager struct {
 }
 
 const maxRecentLogs = 10
-const logBufLimit = 32 * 1024 // 32 KB
 
 type jobChange struct {
 	dirty    bool
@@ -55,7 +55,7 @@ type jobChange struct {
 
 type runningJob struct {
 	jobID     int64
-	logBuf    []byte // Raw PTY stream
+	term      *terminal.Terminal
 	startedAt time.Time
 	baseline  map[string]struct{}
 	pty       *os.File
@@ -70,7 +70,7 @@ type JobSnapshotEvent struct {
 type JobLogEvent struct {
 	Type  string    `json:"type"`
 	JobID int64     `json:"job_id"`
-	Data  []byte    `json:"data"` // Raw chunk (will be base64 encoded in JSON)
+	HTML  string    `json:"html"`
 	When  time.Time `json:"when"`
 }
 
@@ -98,7 +98,7 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 		stateSubs:  make(map[chan []byte]struct{}),
 		jobChanges: make(map[int64]*jobChange),
 		watchRoot:  watchRoot,
-		recentLogs: make(map[int64][]byte),
+		recentLogs: make(map[int64]*terminal.Terminal),
 	}
 
 	go m.watchLoop()
@@ -367,7 +367,12 @@ func (m *Manager) runJob(jobID int64) {
 	}
 
 	baseline := snapshotFiles(m.watchRoot)
-	ctx := &runningJob{jobID: jobID, startedAt: time.Now(), baseline: baseline}
+	ctx := &runningJob{
+		jobID:     jobID,
+		startedAt: time.Now(),
+		baseline:  baseline,
+		term:      terminal.New(500),
+	}
 	m.mu.Lock()
 	m.current = ctx
 	m.mu.Unlock()
@@ -452,8 +457,8 @@ func (m *Manager) runJob(jobID int64) {
 }
 
 func (m *Manager) appendAndBroadcastLog(rj *runningJob, data []byte) {
-	rj.appendLog(data)
-	m.broadcastLogRaw(rj.jobID, data)
+	rj.term.Write(data)
+	m.broadcastLogRaw(rj.jobID, []byte(rj.term.RenderHTML()))
 }
 
 func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) error {
@@ -499,7 +504,7 @@ func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) erro
 func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
 	m.recentLogsMutex.Lock()
 	// Store in recent logs
-	m.recentLogs[jobID] = ctx.logBuf
+	m.recentLogs[jobID] = ctx.term
 	m.recentJobIDs = append(m.recentJobIDs, jobID)
 
 	// Trim to past 10 jobs
@@ -547,7 +552,7 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 	_ = store.UpdateJobPID(m.DB, rj.jobID, pid)
 
 	cmdLine := fmt.Sprintf("%s %s", app.Command, strings.Join(args, " "))
-	firstLine := "$ " + cmdLine + " (dir=" + cmd.Dir + ")" + chars.NewLine
+	firstLine := "$ " + cmdLine + chars.NewLine + chars.CRLF
 	m.appendAndBroadcastLog(rj, []byte(firstLine))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -591,16 +596,8 @@ func (m *Manager) streamRaw(ctx context.Context, jobID int64, r io.Reader, rj *r
 	}
 }
 
-func (rj *runningJob) appendLog(data []byte) {
-	rj.logBuf = append(rj.logBuf, data...)
-	if len(rj.logBuf) > logBufLimit {
-		// Keep last logBufLimit bytes
-		rj.logBuf = rj.logBuf[len(rj.logBuf)-logBufLimit:]
-	}
-}
-
-func (m *Manager) broadcastLogRaw(jobID int64, data []byte) {
-	ev := JobLogEvent{Type: "job_log", JobID: jobID, Data: data, When: time.Now()}
+func (m *Manager) broadcastLogRaw(jobID int64, html []byte) {
+	ev := JobLogEvent{Type: "job_log", JobID: jobID, HTML: string(html), When: time.Now()}
 	m.BroadcastState(ev)
 }
 
@@ -681,8 +678,11 @@ func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 func (m *Manager) GetJobLogs(jobID int64) ([]byte, bool) {
 	m.recentLogsMutex.Lock()
 	defer m.recentLogsMutex.Unlock()
-	logs, ok := m.recentLogs[jobID]
-	return logs, ok
+	term, ok := m.recentLogs[jobID]
+	if !ok {
+		return nil, false
+	}
+	return []byte(term.RenderHTML()), true
 }
 
 func (m *Manager) GetJobLogBuffer(jobID int64) []byte {
@@ -695,5 +695,5 @@ func (m *Manager) GetJobLogBuffer(jobID int64) []byte {
 		}
 		return nil
 	}
-	return m.current.logBuf
+	return []byte(m.current.term.RenderHTML())
 }

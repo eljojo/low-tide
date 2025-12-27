@@ -262,11 +262,43 @@ footer {
   justify-content: space-between;
 }
 
-/* XTerm Overrides */
-.xterm-viewport {
-  background-color: transparent !important;
+/* Terminal Colors */
+.term-container {
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.2;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  color: #bdb;
 }
-.xterm-screen {
+.term-fg30 { color: #0c2835; }
+.term-fg31 { color: #ff4b5c; }
+.term-fg32 { color: #00c0a3; }
+.term-fg33 { color: #ffca1f; }
+.term-fg34 { color: #73d1ff; }
+.term-fg35 { color: #ff7f1f; }
+.term-fg36 { color: #00c0a3; }
+.term-fg37 { color: #fef4e3; }
+.term-fg90 { color: #5c6f82; }
+.term-fg91 { color: #ff6b7a; }
+.term-fg92 { color: #20e3c5; }
+.term-fg93 { color: #ffda5e; }
+.term-fg94 { color: #94deff; }
+.term-fg95 { color: #ff9e52; }
+.term-fg96 { color: #20e3c5; }
+.term-fg97 { color: #ffffff; }
+
+/* Backgrounds */
+.term-bg40 { background-color: #0c2835; }
+.term-bg41 { background-color: #ff4b5c; }
+.term-bg42 { background-color: #00c0a3; }
+.term-bg43 { background-color: #ffca1f; }
+.term-bg44 { background-color: #73d1ff; }
+.term-bg45 { background-color: #ff7f1f; }
+.term-bg46 { background-color: #00c0a3; }
+.term-bg47 { background-color: #fef4e3; }
+
+.xterm-viewport, .xterm-screen {
   background-color: transparent !important;
 }
 .xterm {

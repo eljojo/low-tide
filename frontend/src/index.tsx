@@ -1,9 +1,6 @@
 import { render, h } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { create } from 'zustand';
-import { Terminal } from '@xterm/xterm';
-
-import '@xterm/xterm/css/xterm.css';
 
 interface FileInfo {
   id: number;
@@ -48,15 +45,6 @@ interface AppState {
 
 // Non-reactive log storage to avoid React re-render overhead
 const logBuffers: Record<number, string> = {};
-
-function appendToBuffer(jobId: number, data: string) {
-    const current = logBuffers[jobId] || "";
-    let next = current + data;
-    if (next.length > 49152) {
-        next = next.slice(-32768);
-    }
-    logBuffers[jobId] = next;
-}
 
 const useJobStore = create<AppState>((set) => ({
   jobs: {},
@@ -139,24 +127,11 @@ async function fetchJobLogs(id: number) {
   try {
     const res = await fetch(`/api/jobs/${id}/logs`);
     if (res.ok) {
-      const buf = await res.arrayBuffer();
-      const text = new TextDecoder().decode(buf);
+      const text = await res.text();
       logBuffers[id] = text;
-      // Trigger a light-weight event to let components know logs are loaded
       window.dispatchEvent(new CustomEvent('job-logs-loaded', { detail: { jobId: id } }));
     }
   } catch (e) { console.error(e); }
-}
-
-const decoder = new TextDecoder();
-
-function base64ToBytes(base64: string): Uint8Array {
-  const binString = atob(base64);
-  const bytes = new Uint8Array(binString.length);
-  for (let i = 0; i < binString.length; i++) {
-    bytes[i] = binString.charCodeAt(i);
-  }
-  return bytes;
 }
 
 let socket: WebSocket | null = null;
@@ -185,12 +160,8 @@ function connectWebSocket() {
           fetchJobDetails(job.id);
         }
       } else if (msg.type === 'job_log') {
-        const bytes = base64ToBytes(msg.data);
-        // Using stream: true handles split UTF-8 characters correctly
-        const text = decoder.decode(bytes, { stream: true });
-        appendToBuffer(msg.job_id, text);
-        // Direct stream for the active terminal to avoid re-render jitter
-        window.dispatchEvent(new CustomEvent('job-log-stream', { detail: { jobId: msg.job_id, text } }));
+        logBuffers[msg.job_id] = msg.html;
+        window.dispatchEvent(new CustomEvent('job-log-stream', { detail: { jobId: msg.job_id, html: msg.html } }));
       } else if (msg.type === 'jobs_archived') {
         loadInitialData();
       }
@@ -324,71 +295,21 @@ const JobsList = () => {
 
 const TerminalView = ({ jobId }: { jobId: number }) => {
   const termRef = useRef<HTMLDivElement>(null);
-  const terminal = useRef<Terminal | null>(null);
-  const hasInitialLogs = useRef<boolean>(false);
 
   useEffect(() => {
     if (!termRef.current) return;
-    
-    // Clean up any existing terminal instance or DOM content
-    if (terminal.current) {
-        terminal.current.dispose();
-    }
-    termRef.current.innerHTML = '';
-
-    terminal.current = new Terminal({
-      theme: {
-        background: 'transparent',
-        foreground: '#fef4e3',
-        cursor: 'transparent',
-        black: '#0c2835',
-        red: '#ff4b5c',
-        green: '#00c0a3',
-        yellow: '#ffca1f',
-        blue: '#73d1ff',
-        magenta: '#ff7f1f',
-        cyan: '#00c0a3',
-        white: '#fef4e3',
-      },
-      rows: 24,
-      cols: 100,
-      fontFamily: '"JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      fontSize: 13,
-      convertEol: true,
-      scrollback: 1000,
-      disableStdin: true,
-    });
-
-    terminal.current.open(termRef.current);
-
-    // Initial sync from buffer
-    const initial = logBuffers[jobId] || "";
-    if (initial) {
-      terminal.current.write(initial);
-      hasInitialLogs.current = true;
-    } else {
-      hasInitialLogs.current = false;
-    }
-    terminal.current.scrollToBottom();
-
-    return () => {
-      terminal.current?.dispose();
-      terminal.current = null;
-    };
+    termRef.current.innerHTML = logBuffers[jobId] || "";
   }, [jobId]);
 
   useEffect(() => {
     const handleStream = (e: any) => {
-      if (e.detail.jobId === jobId) {
-        terminal.current?.write(e.detail.text);
-        terminal.current?.scrollToBottom();
+      if (e.detail.jobId === jobId && termRef.current) {
+        termRef.current.innerHTML = e.detail.html;
       }
     };
     const handleLoaded = (e: any) => {
-      if (e.detail.jobId === jobId && !hasInitialLogs.current) {
-        terminal.current?.write(logBuffers[jobId] || "");
-        terminal.current?.scrollToBottom();
-        hasInitialLogs.current = true;
+      if (e.detail.jobId === jobId && termRef.current) {
+        termRef.current.innerHTML = logBuffers[jobId] || "";
       }
     };
 
@@ -400,7 +321,7 @@ const TerminalView = ({ jobId }: { jobId: number }) => {
     };
   }, [jobId]);
 
-  return <div ref={termRef} className="terminal-container" />;
+  return <div ref={termRef} className="terminal-container term-container" />;
 };
 
 const SelectedJobPane = () => {
