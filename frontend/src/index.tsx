@@ -31,10 +31,12 @@ interface AppState {
   jobs: Record<number, Job>;
   selectedJobId: number | null;
   showArchived: boolean;
+  isPinned: boolean;
   consoleCollapsed: boolean;
   setJobs: (jobs: Job[]) => void;
   updateJob: (job: Job) => void;
-  selectJob: (id: number) => void;
+  selectJob: (id: number, pinned?: boolean) => void;
+  setIsPinned: (pinned: boolean) => void;
   deleteJob: (id: number) => void;
   toggleArchived: () => void;
   toggleConsole: () => void;
@@ -48,6 +50,7 @@ const useJobStore = create<AppState>((set) => ({
   jobs: {},
   selectedJobId: null,
   showArchived: false,
+  isPinned: false,
   consoleCollapsed: true,
 
   setJobs: (jobs) => set((state) => {
@@ -65,7 +68,7 @@ const useJobStore = create<AppState>((set) => ({
     }
   })),
 
-  selectJob: (id) => set((state) => {
+  selectJob: (id, pinned = true) => set((state) => {
     const job = state.jobs[id];
     // Fetch logs if they haven't been loaded yet,
     // or if the job is running (meaning logs are constantly changing).
@@ -78,8 +81,10 @@ const useJobStore = create<AppState>((set) => ({
     if (job) {
       consoleCollapsed = job.status === 'success';
     }
-    return { selectedJobId: id, consoleCollapsed };
+    return { selectedJobId: id, consoleCollapsed, isPinned: pinned };
   }),
+
+  setIsPinned: (isPinned) => set({ isPinned }),
 
   deleteJob: (id) => set((state) => {
     const newJobs = { ...state.jobs };
@@ -149,13 +154,14 @@ function connectWebSocket() {
       if (msg.type === 'job_snapshot' && msg.job) {
         const job = (msg.job as Job);
 
-        const oldStatus = useJobStore.getState().jobs[job.id]?.status;
-        useJobStore.getState().updateJob(job);
-        if (job.id === useJobStore.getState().selectedJobId) {
+        const state = useJobStore.getState();
+        const oldStatus = state.jobs[job.id]?.status;
+        state.updateJob(job);
+        if (job.id === state.selectedJobId) {
           if (oldStatus === 'running' && job.status === 'success') {
-            useJobStore.getState().setConsoleCollapsed(true);
+            state.setConsoleCollapsed(true);
           }
-        } else if (job.status === 'running') {
+        } else if (job.status === 'running' && !state.isPinned) {
           useJobStore.getState().selectJob(job.id);
         }
       } else if (msg.type === 'job_log') {
@@ -216,6 +222,14 @@ const NewJobForm = () => {
     const res = await fetch('/api/jobs', { method: 'POST', body: fd });
     if (res.ok) {
       formRef.current.reset();
+      const data = await res.json();
+      let newId = 0;
+      if (data.id) newId = data.id;
+      else if (data.ids && data.ids.length > 0) newId = data.ids[0];
+
+      if (newId) {
+        useJobStore.getState().selectJob(newId, false); // select and unpin
+      }
     }
   };
 
@@ -393,7 +407,7 @@ const SelectedJobPane = () => {
             <div className={`expanded`}>
               <div className="files-list monospace">
                 {files.length === 0 ? (
-                  <em>No files recorded for this job.</em>
+                  job.status !== 'queued' && job.status !== 'running' && <em>No files recorded for this job.</em>
                 ) : (
                   files.map(f => (
                     <div key={f.id} className="file-item">
