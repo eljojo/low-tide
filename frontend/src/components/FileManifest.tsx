@@ -16,10 +16,6 @@ const ManifestPlaceholder = styled('div')`
   color: var(--muted);
 `;
 
-interface FileManifestProps {
-  job: Job;
-}
-
 const SingleFileHero = styled('div')`
   display: flex;
   align-items: center;
@@ -29,6 +25,50 @@ const SingleFileHero = styled('div')`
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
 `;
+
+interface FileManifestProps {
+  job: Job;
+}
+
+export const FileManifest = ({ job }: FileManifestProps) => {
+  const files = job.files || [];
+  const { status, id } = job;
+  const hasFiles = files.length > 0;
+  const isCleaned = status === 'cleaned';
+
+  // Specific state for queued jobs
+  if (status === 'queued') {
+    return (
+      <ManifestSection>
+        <ManifestPlaceholder>Job hasn't started yet</ManifestPlaceholder>
+      </ManifestSection>
+    );
+  }
+
+  // Hide the manifest section entirely for running or failed jobs 
+  // that don't have any files to show yet.
+  if (!hasFiles && (status === 'running' || status === 'failed')) {
+    return null;
+  }
+
+  return (
+    <ManifestSection>
+      <h3 className="lt-title-section">
+        Artifact Manifest {hasFiles ? `[${files.length} Item${files.length === 1 ? '' : 's'}]` : ''}
+      </h3>
+
+      {!hasFiles ? (
+        <ManifestPlaceholder>
+          {isCleaned ? 'Files have been cleaned' : 'No files available'}
+        </ManifestPlaceholder>
+      ) : files.length === 1 ? (
+        <FileHero file={files[0]} jobId={id} isCleaned={isCleaned} />
+      ) : (
+        <FileTable files={files} jobId={id} isCleaned={isCleaned} />
+      )}
+    </ManifestSection>
+  );
+};
 
 const FileHero = ({ file, jobId, isCleaned }: { file: FileInfo; jobId: number; isCleaned: boolean }) => (
   <SingleFileHero className="lt-file-hero">
@@ -72,42 +112,9 @@ const FileTable = ({ files, jobId, isCleaned }: { files: FileInfo[]; jobId: numb
     {!isCleaned && (
       <TableFooter>
         <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${jobId}/zip`}>
-          Download All
+          Download all as ZIP
         </button>
       </TableFooter>
     )}
   </TableContainer>
 );
-
-export const FileManifest = ({ job }: FileManifestProps) => {
-  const files = job.files || [];
-  const { status, id } = job;
-  const hasFiles = files.length > 0;
-  const isCleaned = status === 'cleaned';
-
-  // We hide the manifest section entirely for queued, running, or failed jobs 
-  // that don't have any files to show yet.
-  const isPending = status === 'queued' || status === 'running';
-  if (!hasFiles && (isPending || status === 'failed')) {
-    return null;
-  }
-
-  return (
-    <ManifestSection>
-      <h3 className="lt-title-section">
-        Artifact Manifest {hasFiles ? `[${files.length} Item${files.length === 1 ? '' : 's'}]` : ''}
-      </h3>
-
-      {!hasFiles ? (
-        <ManifestPlaceholder>
-          {isCleaned ? 'Files have been cleaned' : 'No files available'}
-        </ManifestPlaceholder>
-      ) : files.length === 1 ? (
-        <FileHero file={files[0]} jobId={id} isCleaned={isCleaned} />
-      ) : (
-        <FileTable files={files} jobId={id} isCleaned={isCleaned} />
-      )}
-    </ManifestSection>
-  );
-};
-
