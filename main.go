@@ -151,30 +151,46 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "missing urls", 400)
 			return
 		}
-		// If client asked for auto mapping, try to match the first URL to a configured app
-		if appID == "auto" || appID == "" {
-			if a := s.Cfg.MatchAppForURL(urls[0]); a != nil {
-				appID = a.ID
-			}
-		}
-		if s.Cfg.GetApp(appID) == nil {
-			log.Printf("/api/jobs unknown app_id=%q", appID)
-			http.Error(w, "unknown app_id", 400)
-			return
-		}
+
+		isAuto := appID == "auto" || appID == ""
+
 		// Create one job per URL (single-URL-per-job model)
 		var ids []int64
+		var errors []string
+
 		for _, u := range urls {
-			jid, err := store.InsertJob(s.DB, appID, u, time.Now())
+			finalAppID := appID
+			if isAuto {
+				if a := s.Cfg.MatchAppForURL(u); a != nil {
+					finalAppID = a.ID
+				} else {
+					log.Printf("/api/jobs: could not auto-match app for url=%q", u)
+					errors = append(errors, fmt.Sprintf("could not auto-match app for url: %s", u))
+					continue
+				}
+			}
+
+			if s.Cfg.GetApp(finalAppID) == nil {
+				log.Printf("/api/jobs unknown app_id=%q for url=%q", finalAppID, u)
+				errors = append(errors, fmt.Sprintf("unknown app_id=%q for url: %s", finalAppID, u))
+				continue
+			}
+
+			jid, err := store.InsertJob(s.DB, finalAppID, u, time.Now())
 			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
+				errors = append(errors, fmt.Sprintf("failed to insert job for %s: %v", u, err))
+				continue
 			}
 			ids = append(ids, jid)
 			s.Mgr.Queue <- jid
 			// broadcast queued job per-job
 			s.Mgr.BroadcastJobSnapshot(jid)
 			go s.Mgr.FetchAndSaveTitle(jid, u)
+		}
+
+		if len(ids) == 0 && len(errors) > 0 {
+			http.Error(w, strings.Join(errors, "; "), 400)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
