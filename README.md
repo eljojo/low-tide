@@ -76,7 +76,6 @@ This repo is best treated as **LAN-only / behind a reverse proxy with auth** tod
 
 - The WebSocket upgrader currently accepts all origins (`CheckOrigin: true`).
 - The server executes configured commands; treat config changes as privileged.
-- URL parsing/sanitization is intentionally minimal today (see TODOs in code).
 
 ---
 

@@ -45,16 +45,25 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// TODO: This needs to be updated to add URL validation/sanitization.
-// this will be important to prevent injection attacks
 func splitURLs(s string) []string {
 	scanner := bufio.NewScanner(strings.NewReader(s))
-
 	seen := map[string]struct{}{}
-	out := []string{}
+	var out []string
 
 	for scanner.Scan() {
-		for _, f := range strings.Fields(scanner.Text()) {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		for _, rawURL := range strings.Fields(line) {
+			u, err := url.ParseRequestURI(rawURL)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+				log.Printf("skipping invalid URL: %q (err=%v)", rawURL, err)
+				continue
+			}
+
+			f := u.String()
 			if _, ok := seen[f]; ok {
 				continue
 			}
