@@ -50,7 +50,7 @@ type Job struct {
 	Archived     bool       `json:"archived"`
 	OriginalURL  string     `json:"original_url"`
 	Title        string     `json:"title"`
-	Logs         string     `json:"logs,omitempty"`
+	HasLogs      bool       `json:"has_logs"`
 	Files        []JobFile  `json:"files,omitempty"`
 }
 
@@ -60,12 +60,6 @@ type JobFile struct {
 	Path      string    `json:"path"`
 	SizeBytes int64     `json:"size_bytes"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-// LogLine represents an in-memory log entry to persist.
-type LogLine struct {
-	Line string
-	When time.Time
 }
 
 func Init(db *sql.DB) error {
@@ -84,8 +78,7 @@ func Init(db *sql.DB) error {
             finished_at DATETIME,
             archived INTEGER NOT NULL DEFAULT 0,
             original_url TEXT,
-            title TEXT,
-            logs TEXT
+            title TEXT
         );`,
 		`CREATE TABLE IF NOT EXISTS job_files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +101,7 @@ func Init(db *sql.DB) error {
 	if err := ensureColumn(db, "jobs", "title", "TEXT"); err != nil {
 		return err
 	}
-	return ensureColumn(db, "jobs", "logs", "TEXT")
+	return nil
 }
 
 func ensureColumn(db *sql.DB, table, column, colType string) error {
@@ -178,24 +171,22 @@ func scanJob(row interface {
 	var urlStr string
 	var status string
 	var archivedInt int
-	var logs sql.NullString
-	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title, &logs); err != nil {
+	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title); err != nil {
 		return nil, err
 	}
 	j.Status = JobStatus(status)
 	j.Archived = archivedInt != 0
 	j.URL = urlStr
-	j.Logs = logs.String
 	return &j, nil
 }
 
 func GetJob(db *sql.DB, id int64) (*Job, error) {
-	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE id = ?`, id)
+	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs WHERE id = ?`, id)
 	return scanJob(row)
 }
 
 func ListJobs(db *sql.DB, limit int) ([]Job, error) {
-	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs`
+	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
 	q += ` ORDER BY created_at DESC`
 	if limit > 0 {
 		q += ` LIMIT ?`
@@ -250,7 +241,7 @@ func MarkJobFailed(db *sql.DB, id int64, finishedAt time.Time, msg string) error
 }
 
 func ResetJobForRetry(db *sql.DB, id int64) error {
-	_, err := db.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL, logs=NULL WHERE id=?`, id)
+	_, err := db.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL WHERE id=?`, id)
 	return err
 }
 
@@ -266,11 +257,6 @@ func ArchiveJob(db *sql.DB, id int64) error {
 
 func UpdateJobTitle(db *sql.DB, id int64, title string) error {
 	_, err := db.Exec(`UPDATE jobs SET title = ? WHERE id = ?`, title, id)
-	return err
-}
-
-func UpdateJobLogs(db *sql.DB, id int64, logs string) error {
-	_, err := db.Exec(`UPDATE jobs SET logs = ? WHERE id = ?`, logs, id)
 	return err
 }
 
@@ -396,17 +382,5 @@ func DeleteJobFilesAndDirs(db *sql.DB, jobID int64) error {
 
 func DeleteJob(db *sql.DB, jobID int64) error {
 	_, err := db.Exec(`DELETE FROM jobs WHERE id = ?`, jobID)
-	return err
-}
-
-// DeleteJobLogs clears the logs column for a job.
-func DeleteJobLogs(db *sql.DB, jobID int64) error {
-	_, err := db.Exec(`UPDATE jobs SET logs = NULL WHERE id = ?`, jobID)
-	return err
-}
-
-// DeleteLogsForArchivedJobs clears logs for all archived jobs.
-func DeleteLogsForArchivedJobs(db *sql.DB) error {
-	_, err := db.Exec(`UPDATE jobs SET logs = NULL WHERE archived = 1`)
 	return err
 }

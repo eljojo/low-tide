@@ -1,6 +1,9 @@
-import { render } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { render, h } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { create } from 'zustand';
+import { Terminal } from '@xterm/xterm';
+
+import '@xterm/xterm/css/xterm.css';
 
 interface FileInfo {
   id: number;
@@ -17,7 +20,7 @@ interface Job {
   created_at: string;
   archived: boolean;
   files?: FileInfo[];
-  logs?: string;
+  has_logs: boolean;
 }
 
 interface AppConfig {
@@ -36,12 +39,23 @@ interface AppState {
   consoleCollapsed: boolean;
   setJobs: (jobs: Job[]) => void;
   updateJob: (job: Job) => void;
-  appendLog: (jobId: number, line: string) => void;
   selectJob: (id: number) => void;
   deleteJob: (id: number) => void;
   toggleArchived: () => void;
   toggleConsole: () => void;
   setConsoleCollapsed: (collapsed: boolean) => void;
+}
+
+// Non-reactive log storage to avoid React re-render overhead
+const logBuffers: Record<number, string> = {};
+
+function appendToBuffer(jobId: number, data: string) {
+    const current = logBuffers[jobId] || "";
+    let next = current + data;
+    if (next.length > 49152) {
+        next = next.slice(-32768);
+    }
+    logBuffers[jobId] = next;
 }
 
 const useJobStore = create<AppState>((set) => ({
@@ -65,21 +79,13 @@ const useJobStore = create<AppState>((set) => ({
     }
   })),
 
-  appendLog: (jobId, line) => set((state) => {
-    const job = state.jobs[jobId];
-    if (!job) return state;
-    const currentLogs = job.logs || "";
-    const newLogs = currentLogs + (currentLogs !== "" ? String.fromCharCode(10) : "") + line;
-    return {
-      jobs: {
-        ...state.jobs,
-        [jobId]: { ...job, logs: newLogs }
-      }
-    };
-  }),
-
   selectJob: (id) => set((state) => {
     const job = state.jobs[id];
+    if (job?.has_logs && !logBuffers[id]) {
+        // Need to trigger fetch
+        setTimeout(() => fetchJobLogs(id), 0);
+    }
+
     let consoleCollapsed = state.consoleCollapsed;
     if (job) {
       consoleCollapsed = job.status === 'success';
@@ -90,6 +96,7 @@ const useJobStore = create<AppState>((set) => ({
   deleteJob: (id) => set((state) => {
     const newJobs = { ...state.jobs };
     delete newJobs[id];
+    delete logBuffers[id];
     return {
       jobs: newJobs,
       selectedJobId: state.selectedJobId === id ? null : state.selectedJobId
@@ -100,8 +107,6 @@ const useJobStore = create<AppState>((set) => ({
   toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
   setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed }),
 }));
-
-// --- API ACTIONS ---
 
 async function loadInitialData() {
   try {
@@ -130,31 +135,71 @@ async function fetchJobDetails(id: number) {
   } catch (e) { console.error(e); }
 }
 
+async function fetchJobLogs(id: number) {
+  try {
+    const res = await fetch(`/api/jobs/${id}/logs`);
+    if (res.ok) {
+      const buf = await res.arrayBuffer();
+      const text = new TextDecoder().decode(buf);
+      logBuffers[id] = text;
+      // Trigger a light-weight event to let components know logs are loaded
+      window.dispatchEvent(new CustomEvent('job-logs-loaded', { detail: { jobId: id } }));
+    }
+  } catch (e) { console.error(e); }
+}
+
+const decoder = new TextDecoder();
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binString = atob(base64);
+  const bytes = new Uint8Array(binString.length);
+  for (let i = 0; i < binString.length; i++) {
+    bytes[i] = binString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+let socket: WebSocket | null = null;
+
 function connectWebSocket() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(proto + '//' + location.host + '/ws/state');
-  socket.onmessage = (ev) => {
+  const ws = new WebSocket(proto + '//' + location.host + '/ws/state');
+  socket = ws;
+
+  ws.onmessage = (ev) => {
     try {
+      if (typeof ev.data !== 'string') return;
+      
       const msg = JSON.parse(ev.data);
       if (msg.type === 'job_snapshot' && msg.job) {
-        const oldStatus = useJobStore.getState().jobs[msg.job.id]?.status;
-        useJobStore.getState().updateJob(msg.job);
-        if (msg.job.id === useJobStore.getState().selectedJobId) {
-          if (oldStatus === 'running' && msg.job.status === 'success') {
+        const job = (msg.job as Job);
+
+        const oldStatus = useJobStore.getState().jobs[job.id]?.status;
+        useJobStore.getState().updateJob(job);
+        if (job.id === useJobStore.getState().selectedJobId) {
+          if (oldStatus === 'running' && job.status === 'success') {
             useJobStore.getState().setConsoleCollapsed(true);
           }
-        } else if (msg.job.status === 'running') {
-          useJobStore.getState().selectJob(msg.job.id);
-          fetchJobDetails(msg.job.id);
+        } else if (job.status === 'running') {
+          useJobStore.getState().selectJob(job.id);
+          fetchJobDetails(job.id);
         }
       } else if (msg.type === 'job_log') {
-        useJobStore.getState().appendLog(msg.job_id, msg.line);
+        const bytes = base64ToBytes(msg.data);
+        // Using stream: true handles split UTF-8 characters correctly
+        const text = decoder.decode(bytes, { stream: true });
+        appendToBuffer(msg.job_id, text);
+        // Direct stream for the active terminal to avoid re-render jitter
+        window.dispatchEvent(new CustomEvent('job-log-stream', { detail: { jobId: msg.job_id, text } }));
       } else if (msg.type === 'jobs_archived') {
         loadInitialData();
       }
     } catch (e) { console.error(e); }
   };
-  socket.onclose = () => setTimeout(connectWebSocket, 2000);
+  ws.onclose = () => {
+    socket = null;
+    setTimeout(connectWebSocket, 2000);
+  }
 }
 
 // --- HELPERS ---
@@ -277,6 +322,87 @@ const JobsList = () => {
   );
 };
 
+const TerminalView = ({ jobId }: { jobId: number }) => {
+  const termRef = useRef<HTMLDivElement>(null);
+  const terminal = useRef<Terminal | null>(null);
+  const hasInitialLogs = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (!termRef.current) return;
+    
+    // Clean up any existing terminal instance or DOM content
+    if (terminal.current) {
+        terminal.current.dispose();
+    }
+    termRef.current.innerHTML = '';
+
+    terminal.current = new Terminal({
+      theme: {
+        background: 'transparent',
+        foreground: '#fef4e3',
+        cursor: 'transparent',
+        black: '#0c2835',
+        red: '#ff4b5c',
+        green: '#00c0a3',
+        yellow: '#ffca1f',
+        blue: '#73d1ff',
+        magenta: '#ff7f1f',
+        cyan: '#00c0a3',
+        white: '#fef4e3',
+      },
+      rows: 24,
+      cols: 100,
+      fontFamily: '"JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontSize: 13,
+      convertEol: true,
+      scrollback: 1000,
+      disableStdin: true,
+    });
+
+    terminal.current.open(termRef.current);
+
+    // Initial sync from buffer
+    const initial = logBuffers[jobId] || "";
+    if (initial) {
+      terminal.current.write(initial);
+      hasInitialLogs.current = true;
+    } else {
+      hasInitialLogs.current = false;
+    }
+    terminal.current.scrollToBottom();
+
+    return () => {
+      terminal.current?.dispose();
+      terminal.current = null;
+    };
+  }, [jobId]);
+
+  useEffect(() => {
+    const handleStream = (e: any) => {
+      if (e.detail.jobId === jobId) {
+        terminal.current?.write(e.detail.text);
+        terminal.current?.scrollToBottom();
+      }
+    };
+    const handleLoaded = (e: any) => {
+      if (e.detail.jobId === jobId && !hasInitialLogs.current) {
+        terminal.current?.write(logBuffers[jobId] || "");
+        terminal.current?.scrollToBottom();
+        hasInitialLogs.current = true;
+      }
+    };
+
+    window.addEventListener('job-log-stream', handleStream);
+    window.addEventListener('job-logs-loaded', handleLoaded);
+    return () => {
+      window.removeEventListener('job-log-stream', handleStream);
+      window.removeEventListener('job-logs-loaded', handleLoaded);
+    };
+  }, [jobId]);
+
+  return <div ref={termRef} className="terminal-container" />;
+};
+
 const SelectedJobPane = () => {
   const { jobs, selectedJobId, consoleCollapsed, toggleConsole, deleteJob } = useJobStore();
   const job = selectedJobId ? jobs[selectedJobId] : null;
@@ -339,19 +465,21 @@ const SelectedJobPane = () => {
         </div>
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--muted)' }}>Logs</h3>
-          <button className="secondary" onClick={toggleConsole}>{consoleCollapsed ? 'Expand' : 'Collapse'}</button>
-        </div>
-        <div className="console-area">
-          <div className={consoleCollapsed ? '' : 'expanded'} id="console-inner">
-             <div id="log-view" className="monospace">
-               <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{job.logs || 'No logs.'}</pre>
-             </div>
+      {(job.has_logs || job.status === 'running') && (
+        <div style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--muted)' }}>Logs</h3>
+            <button className="secondary" onClick={toggleConsole}>{consoleCollapsed ? 'Expand' : 'Collapse'}</button>
+          </div>
+          <div className="console-area">
+            <div className={consoleCollapsed ? '' : 'expanded'} id="console-inner">
+               <div id="log-view" className="monospace">
+                 <TerminalView jobId={job.id} />
+               </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 };

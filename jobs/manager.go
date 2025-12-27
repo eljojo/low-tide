@@ -1,7 +1,6 @@
 package jobs
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/fsnotify/fsnotify"
 
 	"low-tide/config"
@@ -32,12 +32,20 @@ type Manager struct {
 	mu      sync.Mutex
 	current *runningJob
 
+	// In-memory log buffer for the past 10 jobs
+	recentLogs      map[int64][]byte
+	recentJobIDs    []int64
+	recentLogsMutex sync.Mutex
+
 	stateSubs      map[chan []byte]struct{}
 	stateSubsMutex sync.Mutex
 
 	jobChanges   map[int64]*jobChange
 	jobChangesMu sync.Mutex
 }
+
+const maxRecentLogs = 10
+const logBufLimit = 32 * 1024 // 32 KB
 
 type jobChange struct {
 	dirty    bool
@@ -46,11 +54,11 @@ type jobChange struct {
 }
 
 type runningJob struct {
-	jobID       int64
-	logBuf      []store.LogLine
-	logBufLimit int
-	startedAt   time.Time
-	baseline    map[string]struct{}
+	jobID     int64
+	logBuf    []byte // Raw PTY stream
+	startedAt time.Time
+	baseline  map[string]struct{}
+	pty       *os.File
 }
 
 type JobSnapshotEvent struct {
@@ -62,7 +70,7 @@ type JobSnapshotEvent struct {
 type JobLogEvent struct {
 	Type  string    `json:"type"`
 	JobID int64     `json:"job_id"`
-	Line  string    `json:"line"`
+	Data  []byte    `json:"data"` // Raw chunk (will be base64 encoded in JSON)
 	When  time.Time `json:"when"`
 }
 
@@ -90,6 +98,7 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 		stateSubs:  make(map[chan []byte]struct{}),
 		jobChanges: make(map[int64]*jobChange),
 		watchRoot:  watchRoot,
+		recentLogs: make(map[int64][]byte),
 	}
 
 	go m.watchLoop()
@@ -100,7 +109,6 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 }
 
 // filesPublisher emits job files snapshots at most every 100ms when marked dirty.
-
 // worker processes queued job IDs sequentially.
 func (m *Manager) worker() {
 	for jobID := range m.Queue {
@@ -120,8 +128,6 @@ func (m *Manager) filesPublisher() {
 			seq   uint64
 		}
 
-		// NOTE: avoid data races by only reading/writing jobChange fields while
-		// holding jobChangesMu.
 		m.jobChangesMu.Lock()
 		items := make([]workItem, 0, len(m.jobChanges))
 		for id, ch := range m.jobChanges {
@@ -361,7 +367,7 @@ func (m *Manager) runJob(jobID int64) {
 	}
 
 	baseline := snapshotFiles(m.watchRoot)
-	ctx := &runningJob{jobID: jobID, logBufLimit: 4000, startedAt: time.Now(), baseline: baseline}
+	ctx := &runningJob{jobID: jobID, startedAt: time.Now(), baseline: baseline}
 	m.mu.Lock()
 	m.current = ctx
 	m.mu.Unlock()
@@ -433,22 +439,21 @@ func (m *Manager) runJob(jobID int64) {
 
 	finished := time.Now()
 	if success {
-		summaryLine := fmt.Sprintf("--- Job finished at %s: Success ---", finished.Format(time.RFC3339))
-		m.appendAndBroadcastLog(ctx, summaryLine, finished)
+		summaryLine := chars.NewLine + "--- Job finished at " + finished.Format(time.RFC3339) + ": Success ---" + chars.NewLine
+		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
 		_ = store.MarkJobSuccess(m.DB, jobID, finished)
 	} else {
-		summaryLine := fmt.Sprintf("--- Job finished at %s: Failed (%s) ---", finished.Format(time.RFC3339), failureMsg)
-		m.appendAndBroadcastLog(ctx, summaryLine, finished)
+		summaryLine := chars.NewLine + "--- Job finished at " + finished.Format(time.RFC3339) + ": Failed (" + failureMsg + ") ---" + chars.NewLine
+		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
 	}
 
 	m.BroadcastJobSnapshot(jobID)
 	m.clearCurrent(jobID, ctx)
 }
 
-func (m *Manager) appendAndBroadcastLog(rj *runningJob, line string, when time.Time) {
-	entry := store.LogLine{Line: line, When: when}
-	rj.appendLog(entry)
-	m.broadcastLog(rj.jobID, line)
+func (m *Manager) appendAndBroadcastLog(rj *runningJob, data []byte) {
+	rj.appendLog(data)
+	m.broadcastLogRaw(rj.jobID, data)
 }
 
 func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) error {
@@ -471,7 +476,7 @@ func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) erro
 		}
 		if baseline != nil {
 			if _, ok := baseline[path]; ok {
-				return nil // existed before job
+				return nil
 			}
 		}
 		seen[path] = struct{}{}
@@ -492,14 +497,19 @@ func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) erro
 }
 
 func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
-	if len(ctx.logBuf) > 0 {
-		var lines []string
-		for _, entry := range ctx.logBuf {
-			lines = append(lines, entry.Line)
-		}
-		joined := strings.Join(lines, chars.NewLine)
-		_ = store.UpdateJobLogs(m.DB, jobID, joined)
+	m.recentLogsMutex.Lock()
+	// Store in recent logs
+	m.recentLogs[jobID] = ctx.logBuf
+	m.recentJobIDs = append(m.recentJobIDs, jobID)
+
+	// Trim to past 10 jobs
+	if len(m.recentJobIDs) > maxRecentLogs {
+		toRemove := m.recentJobIDs[0]
+		delete(m.recentLogs, toRemove)
+		m.recentJobIDs = m.recentJobIDs[1:]
 	}
+	m.recentLogsMutex.Unlock()
+
 	m.mu.Lock()
 	if m.current == ctx {
 		m.current = nil
@@ -508,7 +518,6 @@ func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
 }
 
 func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string) error {
-	// Strip trailing slash if configured for this app
 	if app.StripTrailingSlash && strings.HasSuffix(url, "/") {
 		url = strings.TrimSuffix(url, "/")
 	}
@@ -521,33 +530,40 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 	cmd := exec.Command(app.Command, args...)
 	cmd.Env = os.Environ()
 	cmd.Dir = m.Cfg.WatchDir
-	// TODO: this probably needs some shell escaping protection
-	cmdLine := fmt.Sprintf("%s %s", app.Command, strings.Join(args, " "))
-	log.Printf("job %d: running command: (dir=%s) %s", rj.jobID, cmd.Dir, cmdLine)
-	firstLine := fmt.Sprintf("$ %s (dir=%s)", cmdLine, cmd.Dir)
-	m.broadcastLog(rj.jobID, firstLine)
-	rj.appendLog(store.LogLine{Line: firstLine, When: time.Now()})
+	// Tell apps we are a terminal
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-
-	if err := cmd.Start(); err != nil {
-		log.Printf("job %d: failed to start command: %v", rj.jobID, err)
+	f, err := pty.Start(cmd)
+	if err != nil {
 		return err
 	}
+	rj.pty = f
+	defer f.Close()
+
+	// Set terminal size
+	_ = pty.Setsize(f, &pty.Winsize{Rows: 24, Cols: 100})
 
 	pid := cmd.Process.Pid
 	_ = store.UpdateJobPID(m.DB, rj.jobID, pid)
 
+	cmdLine := fmt.Sprintf("%s %s", app.Command, strings.Join(args, " "))
+	firstLine := "$ " + cmdLine + " (dir=" + cmd.Dir + ")" + chars.NewLine
+	m.appendAndBroadcastLog(rj, []byte(firstLine))
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go m.streamPipe(ctx, rj.jobID, stdout, rj)
-	go m.streamPipe(ctx, rj.jobID, stderr, rj)
+	go m.streamRaw(ctx, rj.jobID, f, rj)
 
-	err := cmd.Wait()
+	err = cmd.Wait()
 	exitCode := cmd.ProcessState.ExitCode()
 	_ = store.ClearJobPID(m.DB, rj.jobID, exitCode)
+
+	m.mu.Lock()
+	if m.current == rj {
+		rj.pty = nil
+	}
+	m.mu.Unlock()
 
 	if err != nil {
 		return err
@@ -555,40 +571,39 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 	return nil
 }
 
-func (m *Manager) streamPipe(ctx context.Context, jobID int64, r io.Reader, rj *runningJob) {
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
+func (m *Manager) streamRaw(ctx context.Context, jobID int64, r io.Reader, rj *runningJob) {
+	buf := make([]byte, 32*1024)
+	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			line := sc.Text()
-			log.Printf("[job %d] %s", jobID, line)
-			m.broadcastLog(jobID, line)
-			entry := store.LogLine{Line: line, When: time.Now()}
-			rj.appendLog(entry)
+			n, err := r.Read(buf)
+			if n > 0 {
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				m.appendAndBroadcastLog(rj, data)
+			}
+			if err != nil {
+				return
+			}
 		}
 	}
 }
 
-func (rj *runningJob) appendLog(entry store.LogLine) {
-	if rj.logBufLimit <= 0 {
-		return
-	}
-	if len(rj.logBuf) < rj.logBufLimit {
-		rj.logBuf = append(rj.logBuf, entry)
-	} else {
-		copy(rj.logBuf, rj.logBuf[1:])
-		rj.logBuf[len(rj.logBuf)-1] = entry
+func (rj *runningJob) appendLog(data []byte) {
+	rj.logBuf = append(rj.logBuf, data...)
+	if len(rj.logBuf) > logBufLimit {
+		// Keep last logBufLimit bytes
+		rj.logBuf = rj.logBuf[len(rj.logBuf)-logBufLimit:]
 	}
 }
 
-func (m *Manager) broadcastLog(jobID int64, line string) {
-	ev := JobLogEvent{Type: "job_log", JobID: jobID, Line: line, When: time.Now()}
+func (m *Manager) broadcastLogRaw(jobID int64, data []byte) {
+	ev := JobLogEvent{Type: "job_log", JobID: jobID, Data: data, When: time.Now()}
 	m.BroadcastState(ev)
 }
 
-// State subscription API
 func (m *Manager) SubscribeState() chan []byte {
 	ch := make(chan []byte, 64)
 	m.stateSubsMutex.Lock()
@@ -629,18 +644,6 @@ func (m *Manager) BroadcastState(v interface{}) {
 	m.broadcastState(v)
 }
 
-func (m *Manager) GetJobLogBuffer(jobID int64) []store.LogLine {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.current == nil || m.current.jobID != jobID {
-		return nil
-	}
-	// Return a copy to avoid race
-	out := make([]store.LogLine, len(m.current.logBuf))
-	copy(out, m.current.logBuf)
-	return out
-}
-
 func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 	j, err := store.GetJob(m.DB, jobID)
 	if err != nil {
@@ -654,23 +657,43 @@ func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 	for _, f := range files {
 		f.Path = m.toRel(f.Path)
 		if f.Path == "" {
-			// Never leak absolute paths; if we can't make this relative, omit it.
 			continue
 		}
 		relFiles = append(relFiles, f)
 	}
 	j.Files = relFiles
 
-	m.mu.Lock()
-	if m.current != nil && m.current.jobID == jobID {
-		var lines []string
-		for _, entry := range m.current.logBuf {
-			lines = append(lines, entry.Line)
+	// Check if we have logs in memory (either current or recent)
+	if _, ok := m.GetJobLogs(jobID); ok {
+		j.HasLogs = true
+	} else {
+		m.mu.Lock()
+		if m.current != nil && m.current.jobID == jobID {
+			j.HasLogs = true
 		}
-		j.Logs = strings.Join(lines, chars.NewLine)
+		m.mu.Unlock()
 	}
-	m.mu.Unlock()
 
 	ev := JobSnapshotEvent{Type: "job_snapshot", Job: j, At: time.Now()}
 	m.BroadcastState(ev)
+}
+
+func (m *Manager) GetJobLogs(jobID int64) ([]byte, bool) {
+	m.recentLogsMutex.Lock()
+	defer m.recentLogsMutex.Unlock()
+	logs, ok := m.recentLogs[jobID]
+	return logs, ok
+}
+
+func (m *Manager) GetJobLogBuffer(jobID int64) []byte {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.current == nil || m.current.jobID != jobID {
+		// Fallback to recent logs
+		if logs, ok := m.GetJobLogs(jobID); ok {
+			return logs
+		}
+		return nil
+	}
+	return m.current.logBuf
 }

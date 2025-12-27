@@ -18,7 +18,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"low-tide/config"
-	"low-tide/internal/chars"
 	"low-tide/jobs"
 	"low-tide/store"
 )
@@ -132,6 +131,9 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
+			if buf := s.Mgr.GetJobLogBuffer(j.ID); len(buf) > 0 {
+				j.HasLogs = true
+			}
 			out = append(out, jobWithFiles{Job: j, HasFiles: fCount > 0, FileCount: fCount})
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -195,8 +197,6 @@ func (s *Server) handleClearJobs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	// delete logs for archived jobs
-	_ = store.DeleteLogsForArchivedJobs(s.DB)
 	// broadcast state change that jobs were archived
 	s.Mgr.BroadcastState(map[string]string{"type": "jobs_archived"})
 	w.WriteHeader(http.StatusNoContent)
@@ -249,6 +249,12 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.handleZip(w, r, id)
+	case "logs":
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleJobLogs(w, r, id)
 	case "files":
 		// DEPRECATED: /api/jobs/{id}/files is now part of the snapshot.
 		// Only support DELETE (cleaning up) or specific file downloads.
@@ -284,8 +290,6 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// delete logs for this job
-		_ = store.DeleteJobLogs(s.DB, id)
 		// broadcast state change
 		s.Mgr.BroadcastJobSnapshot(id)
 		w.WriteHeader(http.StatusNoContent)
@@ -307,10 +311,6 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		}
 		// Remove DB rows for files/dirs and logs
 		if err := store.DeleteJobFilesAndDirs(s.DB, id); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if err := store.DeleteJobLogs(s.DB, id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -375,20 +375,24 @@ func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID
 	}
 	j.Files = rel
 
-	// append in-memory logs if any (for running job)
+	// Mark if logs are available
 	if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
-		var lines []string
-		if j.Logs != "" {
-			lines = append(lines, j.Logs)
-		}
-		for _, entry := range buf {
-			lines = append(lines, entry.Line)
-		}
-		j.Logs = strings.Join(lines, chars.NewLine)
+		j.HasLogs = true
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(j)
+}
+
+func (s *Server) handleJobLogs(w http.ResponseWriter, r *http.Request, jobID int64) {
+	logs := s.Mgr.GetJobLogBuffer(jobID)
+	if logs == nil {
+		http.Error(w, "logs not available", 404)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	_, _ = w.Write(logs)
 }
 
 // Download a single file
