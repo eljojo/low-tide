@@ -13,8 +13,3 @@ apps:
     strip_trailing_slash: true
     args: ["dl", "%u"]
     regex: '^https?://(www\.|listen\.)?tidal\.com/'
-  - id: "auto"
-    name: "Auto (choose by URL)"
-    command: ""
-    args: []
-    regex: ''

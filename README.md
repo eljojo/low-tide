@@ -1,65 +1,173 @@
-Low Tide
-=========
+# Low Tide
 
-Low Tide is a self-hosted, single-node web app for managing media downloads (using tools like `yt-dlp`, `tidal-dl`, etc.) with a live UI and simple automation.
+Low Tide is a **self-hosted, single-node web app** for managing media downloads (via tools like `yt-dlp`, `tidal-dl-ng`, etc.) with a **live UI**, **persisted history**, and **simple automation**.
 
-It is designed to be **simple, predictable, and visual**.
+It’s built for homelabs where you want:
 
-### Why Low Tide?
-*   **Visual & Live:** Watch the download process in real-time. The UI shows you the console output as it happens and updates the file list instantly as files are written to disk.
-*   **One Job at a Time:** It deliberately runs a single worker to process jobs sequentially. This avoids API throttling from services (like YouTube or Tidal) and keeps resource usage low.
-*   **Pluggable Backends:** It shells out to any command-line tool you configure. It doesn't implement download logic itself; it just orchestrates the CLI tools you already use.
-*   **Self-Contained:** A single binary with an embedded SQLite database. No Redis, no external DB, no complex setup.
-*   **State Recovery:** Everything is persisted. If the server crashes, your job history, logs, and downloaded artifacts are safe.
+- A small, predictable service you can run on a box/NAS/VPS
+- A UI you can leave open while downloads run
+- A clean separation between “orchestration” and “download logic”
 
 ---
 
-## Developer Guide & Architecture
+## What makes it different
 
-Low Tide behaves like a "Meteor" app or a synchronized state machine. The backend is the source of truth, and the frontend is a thin view that reflects the current state.
+- **Pluggable download backends (CLI-first)**: Low Tide doesn’t re-implement YouTube/Tidal/etc. It runs the CLI tools you already trust, based on a YAML config.
+- **Live terminal in the browser**: See the subprocess output as it happens (ANSI formatting preserved), not just “percent complete”.
+- **Artifact tracking without guesswork**: Files are detected via **filesystem watching**, so the UI updates as soon as files land on disk.
+- **State survives restarts**: Jobs, output logs, and discovered artifacts are persisted to a local **SQLite** database.
+- **Deliberately sequential**: One worker processes jobs **one-at-a-time** to reduce throttling/rate limits and keep resource usage sane.
 
-### Core Philosophy: "Snapshot as Truth"
-Instead of sending many small, imperative events (e.g., "job started", "file added", "status changed"), the server frequently broadcasts a **complete snapshot** of the job state.
+---
 
-*   **Synchronization:** When a job changes (status update, new file found), the server sends the full serialized JSON of the Job object and its related Files.
-*   **Simplicity:** The frontend doesn't need complex state management (reducers, patch logic). It simply replaces its local object with the new snapshot.
-*   **Resilience:** If a WebSocket message is dropped, the next snapshot will correct the state. There is no "drift."
+## What you can do with it
 
-### Project Structure
+- Queue URLs (one URL per job; paste multiple URLs to create multiple jobs)
+- Choose a downloader “app” (or let Low Tide auto-pick based on URL regex)
+- Watch logs live while the job runs, in real time (websockets babayy!!!)
+- Download results (single file or a ZIP of all job artifacts)
+- Cancel running jobs
+- Retry failed/cancelled jobs
+- Archive finished jobs, so they don't show up in the UI
+- “Cleanup” a job (delete artifacts on disk and mark the job cleaned)
 
-#### `jobs/manager.go` (The Brain)
-*   **Lifecycle:** Manages the background worker, queues jobs, and executes the shell commands.
-*   **FS Watcher:** Uses `fsnotify` to watch the download directory. When files are created or deleted, it updates the database immediately.
-*   **Broadcasting:** Handles the WebSocket hub. When the DB updates, it broadcasts `JobSnapshotEvent` to all connected clients.
-*   **Logging:** Captures `stdout`/`stderr` from the subprocess, saves them to SQLite, and streams them live to the frontend.
+---
 
-#### `store/` (The Persistence)
-*   **SQLite:** All state is stored in `sqlite3`.
-*   **Schema:**
-    *   `jobs`: Metadata (status, URL, timestamps).
-    *   `job_files`: Artifacts produced by jobs (path, size).
-    *   `job_logs`: Persisted console output.
-*   **Logic:** The store package handles all DB interactions. It treats file paths as unique constraints to prevent duplicate records.
+## Configuration (high level)
 
-#### `main.go` (The API)
-*   **HTTP Server:** Exposes the REST API and serves the embedded UI.
-*   **WebSocket:** `/ws/state` is the main firehose for UI updates.
-*   **Artifacts:** Handles ZIP generation on the fly for downloading job results.
+Low Tide is configured via a YAML file, take a look at `config/example.yaml` for a full example.
 
-#### `templates/index.html` (The View)
-*   **Single File:** The entire frontend is a single HTML file with embedded CSS/JS.
-*   **Reactive:** Connects to `/ws/state`. deeply coupled to the server's event model.
-*   **UX:** Auto-expands the console for running/failed jobs, auto-expands the file list for successful jobs.
-
-### Contributing
-*   **Design Decision:** We prefer sending slightly more data (full snapshots) over complex client-side logic.
-*   **Design Decision:** File system events are the source of truth for artifacts. If `yt-dlp` creates a file, `fsnotify` sees it -> DB updates -> UI updates. We don't parse `yt-dlp` logs to find files.
-
-### Quickstart (Dev)
-```bash
-# Run with default config
-LOWTIDE_CONFIG=config/config.yaml go run .
+```yaml
+listen_addr: ":8080"
+db_path: "/var/lib/lowtide/lowtide.db"
+watch_dir: "/var/lib/lowtide/downloads"
+apps:
+  - id: "yt-dlp"
+    name: "yt-dlp"
+    command: "yt-dlp"
+    args: ["-P", ".", "%u"]
+    regex: '^https?://(www\.)?(youtube|vimeo|soundcloud|bandcamp|mixcloud)\.com/'
+  - id: "tidal-dl-ng"
+    name: "tidal-dl-ng"
+    command: "tidal-dl-ng"
+    strip_trailing_slash: true
+    args: ["dl", "%u"]
+    regex: '^https?://(www\.|listen\.)?tidal\.com/'
 ```
 
+---
+
+## Status, scope, and non-goals
+
+Low Tide is intentionally small and opinionated.
+
+- **Single-node**: no clustering, no distributed workers.
+- **Not a multi-user service**: there is currently **no authentication/authorization**.
+- **Not a generic workflow engine**: the core job model is “run a command for a URL, then track produced files”.
+
+If you want multi-user permissions, remote storage backends, and a full download-manager ecosystem, you may prefer other tools.
+
+---
+
+## Security notes (important)
+
+This repo is best treated as **LAN-only / behind a reverse proxy with auth** today.
+
+- The WebSocket upgrader currently accepts all origins (`CheckOrigin: true`).
+- The server executes configured commands; treat config changes as privileged.
+- URL parsing/sanitization is intentionally minimal today (see TODOs in code).
+
+---
+
+# Developer guide (architecture & decisions)
+
+This section is for contributors who want to understand how the system works.
+
+## Mental model
+
+Low Tide behaves like a **synchronized state machine**:
+
+- The backend is the source of truth.
+- The frontend is a thin view that mostly renders server state.
+
+### Design decision: “Snapshot as truth”
+
+Instead of having the frontend reconstruct state from many small imperative events, the server frequently broadcasts **complete job snapshots**.
+
+Benefits:
+
+- The UI can be simple (replace local job state with the new snapshot)
+- If a message is dropped, the next snapshot self-heals state
+- State recovery after restarts is straightforward (SQLite is the durable truth)
+
+## High-level data flow
+
+1. User creates a job via the HTTP API.
+2. The `jobs.Manager` queues the job ID.
+3. A single background worker executes the configured CLI command for that job.
+4. Subprocess output is captured:
+   - persisted into SQLite
+   - streamed live to the browser
+5. The filesystem watcher observes artifacts written under `watch_dir` and records them in SQLite.
+6. Connected browsers receive WebSocket updates and re-render.
+
+## Repository layout
+
+- `main.go`
+  - HTTP server, API routing, serving embedded UI assets
+  - WebSocket endpoint for live updates
+  - ZIP streaming + single artifact downloads
+- `jobs/manager.go`
+  - Single-worker queue
+  - Subprocess execution
+  - Live log streaming
+  - Filesystem watch loop and artifact reconciliation
+  - Pub/sub for broadcasting state
+- `store/`
+  - SQLite schema + queries (jobs, files, logs)
+- `config/`
+  - YAML config model + app matching (`regex`) and URL normalization
+- `frontend/`
+  - Source UI (Preact + Zustand)
+  - Bundled output is committed under `/static` (do not edit `/static` directly)
+- `internal/terminal/`
+  - Server-side virtual terminal rendering logic (ANSI to HTML, delta updates)
+
+## Web/API surface (summary)
+
+- HTTP
+  - List/create jobs
+  - Job actions: retry/cancel/archive/cleanup
+  - Download artifacts (single file) or ZIP
+- WebSocket
+  - A single “state channel” used by the UI for:
+    - job snapshot updates
+    - log streaming
+    - coarse state invalidations (e.g. jobs archived)
+
+(Exact message shapes/types are intentionally documented in code near their definitions.)
+
+## Notable implementation details
+
+- **Artifact paths are always validated** before download/delete to prevent escaping `watch_dir`.
+- **Artifact discovery is FS-driven** (watcher events + reconciliation), not log-parsing.
+- **Terminal rendering** uses ANSI-to-HTML conversion and supports **delta updates** to reduce DOM churn.
+
+---
+
+## Ideas / future work
+
+Feature ideas that fit the project’s “small and predictable” scope:
+
+- Authentication (simple password / OAuth via reverse proxy headers/JWT)
+- Safer URL validation and stricter command argument handling
+- Per-app environment variables / working directory configuration
+- Better artifact naming for ZIP downloads (derive from job title/app)
+- Optional concurrency limits (still bounded) for advanced users
+- Dockerfile / container-friendly defaults
+
+---
+
 ## License
+
 AGPL-3.0-only

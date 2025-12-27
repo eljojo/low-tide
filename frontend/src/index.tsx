@@ -458,8 +458,8 @@ const App = () => {
         <SelectedJobPane />
       </main>
       <footer>
-        <span>One-at-a-time downloads</span>
-        <span>Go · WebSocket · SQLite · 90s slime</span>
+        <span>Copia non furta est.</span>
+        <span>Mare liberum, data libera.</span>
       </footer>
     </>
   );
