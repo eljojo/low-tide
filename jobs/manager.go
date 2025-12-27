@@ -52,6 +52,8 @@ type runningJob struct {
 	startedAt time.Time
 	baseline  map[string]struct{}
 	pty       *os.File
+	cmd       *exec.Cmd
+	cancel    context.CancelFunc
 }
 
 type JobSnapshotEvent struct {
@@ -367,12 +369,12 @@ func (m *Manager) scanSiblings(jobID int64, dir string) {
 }
 
 func (m *Manager) runJob(jobID int64) {
-	log.Printf("worker: starting job %d", jobID)
 	j, err := store.GetJob(m.DB, jobID)
 	if err != nil {
 		log.Printf("worker: GetJob(%d) error: %v", jobID, err)
 		return
 	}
+	log.Printf("worker: running job %d (status: %s)", jobID, j.Status)
 
 	baseline := snapshotFiles(m.watchRoot)
 	ctx := &runningJob{
@@ -389,6 +391,9 @@ func (m *Manager) runJob(jobID int64) {
 	m.markDirty(jobID)
 	m.BroadcastJobSnapshot(jobID)
 
+	var failureMsg string
+	success := true
+
 	// Initial resync to catch any files created between snapshotFiles (baseline) and now.
 	if err := m.resyncJobFiles(jobID, baseline); err != nil {
 		log.Printf("worker: initial resync job %d error: %v", jobID, err)
@@ -397,20 +402,18 @@ func (m *Manager) runJob(jobID int64) {
 	appCfg := m.Cfg.GetApp(j.AppID)
 	if appCfg == nil {
 		log.Printf("worker: job %d failed, unknown app %s", jobID, j.AppID)
-		_ = store.MarkJobFailed(m.DB, jobID, time.Now(), "unknown app: "+j.AppID, "")
+		failureMsg = "unknown app: " + j.AppID
+		success = false
 		m.BroadcastJobSnapshot(jobID)
 		m.clearCurrent(jobID, ctx)
 		return
 	}
 
-	var failureMsg string
-	success := true
 	if j.URL != "" {
 		err := m.runSingleURL(ctx, appCfg, j.URL)
 		if err != nil {
 			success = false
 			failureMsg = err.Error()
-			_ = store.MarkJobFailed(m.DB, jobID, time.Now(), failureMsg, ctx.term.RenderHTML())
 		}
 	}
 
@@ -419,7 +422,7 @@ func (m *Manager) runJob(jobID int64) {
 		log.Printf("worker: resync job %d error: %v", jobID, err)
 	}
 
-	if success {
+	if success && failureMsg == "" {
 		files, err := store.ListJobFiles(m.DB, jobID)
 		if err != nil {
 			log.Printf("worker: list files error: %v", err)
@@ -434,7 +437,6 @@ func (m *Manager) runJob(jobID int64) {
 			if !hasContent {
 				success = false
 				failureMsg = "no output files found (or all empty)"
-				_ = store.MarkJobFailed(m.DB, jobID, time.Now(), failureMsg, ctx.term.RenderHTML())
 			}
 		}
 	}
@@ -451,12 +453,22 @@ func (m *Manager) runJob(jobID int64) {
 	}
 
 	finished := time.Now()
+	duration := finished.Sub(ctx.startedAt).Round(time.Second)
+
 	if success {
-		summaryLine := chars.NewLine + "--- Job finished at " + finished.Format(time.RFC3339) + ": Success ---" + chars.NewLine
+		summaryLine := chars.NewLine + fmt.Sprintf("\x1b[1;32m✅ --- Job finished: Success (ran for %v) ---\x1b[0m", duration) + chars.NewLine
 		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
 		_ = store.MarkJobSuccess(m.DB, jobID, finished, ctx.term.RenderHTML())
+	} else if failureMsg == "cancelled" {
+		summaryLine := chars.NewLine + fmt.Sprintf("\x1b[1;33m⏹️ --- Job CANCELLED (ran for %v) ---\x1b[0m", duration) + chars.NewLine
+		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
+		_ = store.MarkJobCancelled(m.DB, jobID, finished, ctx.term.RenderHTML())
+	} else if failureMsg == "signal: killed" {
+		summaryLine := chars.NewLine + fmt.Sprintf("\x1b[1;31m🛑 --- Job KILLED (ran for %v) ---\x1b[0m", duration) + chars.NewLine
+		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
+		_ = store.MarkJobCancelled(m.DB, jobID, finished, ctx.term.RenderHTML())
 	} else {
-		summaryLine := chars.NewLine + "--- Job finished at " + finished.Format(time.RFC3339) + ": Failed (" + failureMsg + ") ---" + chars.NewLine
+		summaryLine := chars.NewLine + fmt.Sprintf("\x1b[1;31m❌ --- Job finished: Failed (%s) (ran for %v) ---\x1b[0m", failureMsg, duration) + chars.NewLine
 		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
 		_ = store.MarkJobFailed(m.DB, jobID, finished, failureMsg, ctx.term.RenderHTML())
 	}
@@ -517,6 +529,26 @@ func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
 	m.mu.Unlock()
 }
 
+func (m *Manager) CancelJob(jobID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.current == nil || m.current.jobID != jobID {
+		return fmt.Errorf("job %d is not running", jobID)
+	}
+	if m.current.cancel != nil {
+		m.current.cancel()
+	}
+	if m.current.pty != nil {
+		// Send SIGTERM to the process group if possible, or just the process
+		_ = m.current.pty.Close()
+	}
+	if m.current.cmd != nil && m.current.cmd.Process != nil {
+		log.Printf("CancelJob %d: killing process %d", jobID, m.current.cmd.Process.Pid)
+		_ = m.current.cmd.Process.Kill()
+	}
+	return nil
+}
+
 func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string) error {
 	if app.StripTrailingSlash && strings.HasSuffix(url, "/") {
 		url = strings.TrimSuffix(url, "/")
@@ -527,11 +559,16 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 		args = append(args, strings.ReplaceAll(a, "%u", url))
 	}
 
-	cmd := exec.Command(app.Command, args...)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rj.cancel = cancel
+
+	cmd := exec.CommandContext(ctx, app.Command, args...)
 	cmd.Env = os.Environ()
 	cmd.Dir = m.Cfg.WatchDir
 	// Tell apps we are a terminal
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	rj.cmd = cmd
 
 	f, err := pty.Start(cmd)
 	if err != nil {
@@ -550,13 +587,13 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 	firstLine := "$ " + cmdLine + chars.NewLine + chars.CRLF
 	m.appendAndBroadcastLog(rj, []byte(firstLine))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	go m.streamRaw(ctx, rj.jobID, f, rj)
 
 	err = cmd.Wait()
-	exitCode := cmd.ProcessState.ExitCode()
+	exitCode := -1
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	}
 	_ = store.ClearJobPID(m.DB, rj.jobID, exitCode)
 
 	m.mu.Lock()
@@ -564,6 +601,10 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 		rj.pty = nil
 	}
 	m.mu.Unlock()
+
+	if ctx.Err() != nil {
+		return fmt.Errorf("cancelled")
+	}
 
 	if err != nil {
 		return err

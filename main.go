@@ -239,6 +239,17 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.Mgr.Queue <- id
+		s.Mgr.BroadcastJobSnapshot(id)
+		w.WriteHeader(http.StatusNoContent)
+	case "cancel":
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if err := s.Mgr.CancelJob(id); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	case "zip":
 		if r.Method != http.MethodGet {
@@ -291,27 +302,19 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		s.Mgr.BroadcastJobSnapshot(id)
 		w.WriteHeader(http.StatusNoContent)
 		return
-	case "delete":
-		// Delete = archive + delete files + delete logs
-		if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+	case "cleanup":
+		// Cleanup = archive + delete files + status=cleaned
+		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		if err := store.ArchiveJob(s.DB, id); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		// Remove files/dirs from disk (only recorded artifacts)
+		// 1. Remove files from disk
 		if err := s.deleteJobArtifacts(id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// Remove DB rows for files/dirs and logs
-		if err := store.DeleteJobFilesAndDirs(s.DB, id); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if err := store.DeleteJob(s.DB, id); err != nil {
+		// 2. Set status to cleaned and archived in DB
+		if err := store.MarkJobCleaned(s.DB, id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -432,9 +435,6 @@ func (s *Server) deleteJobArtifacts(jobID int64) error {
 		return fmt.Errorf("errors removing artifacts: %s", strings.Join(errs, "; "))
 	}
 
-	if err := store.DeleteJobFilesAndDirs(s.DB, jobID); err != nil {
-		return err
-	}
 	return nil
 }
 

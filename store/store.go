@@ -30,10 +30,12 @@ func isSubpath(parent, child string) bool {
 type JobStatus string
 
 const (
-	StatusQueued  JobStatus = "queued"
-	StatusRunning JobStatus = "running"
-	StatusSuccess JobStatus = "success"
-	StatusFailed  JobStatus = "failed"
+	StatusQueued    JobStatus = "queued"
+	StatusRunning   JobStatus = "running"
+	StatusSuccess   JobStatus = "success"
+	StatusFailed    JobStatus = "failed"
+	StatusCancelled JobStatus = "cancelled"
+	StatusCleaned   JobStatus = "cleaned"
 )
 
 type Job struct {
@@ -257,14 +259,34 @@ func MarkJobSuccess(db *sql.DB, id int64, finishedAt time.Time, logs string) err
 	return err
 }
 
+func MarkJobCancelled(db *sql.DB, id int64, finishedAt time.Time, logs string) error {
+	_, err := db.Exec(`UPDATE jobs SET status = 'cancelled', finished_at = ?, logs = ? WHERE id = ?`, finishedAt, logs, id)
+	return err
+}
+
 func MarkJobFailed(db *sql.DB, id int64, finishedAt time.Time, msg string, logs string) error {
 	_, err := db.Exec(`UPDATE jobs SET status = 'failed', finished_at = ?, error_message = ?, logs = ? WHERE id = ?`, finishedAt, msg, logs, id)
 	return err
 }
 
-func ResetJobForRetry(db *sql.DB, id int64) error {
-	_, err := db.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL WHERE id=?`, id)
+func MarkJobCleaned(db *sql.DB, id int64) error {
+	_, err := db.Exec(`UPDATE jobs SET status = 'cleaned', archived = 1 WHERE id = ?`, id)
 	return err
+}
+
+func ResetJobForRetry(db *sql.DB, id int64) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL, logs=NULL, archived=0 WHERE id=?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM job_files WHERE job_id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func ArchiveFinishedJobs(db *sql.DB) error {

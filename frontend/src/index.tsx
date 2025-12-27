@@ -13,7 +13,7 @@ interface Job {
   title?: string;
   url?: string;
   original_url?: string;
-  status: 'queued' | 'running' | 'success' | 'failed';
+  status: 'queued' | 'running' | 'success' | 'failed' | 'cancelled' | 'cleaned';
   created_at: string;
   archived: boolean;
   files?: FileInfo[];
@@ -350,10 +350,11 @@ const SelectedJobPane = () => {
   const files = job.files || [];
 
   const handleRetry = () => fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
+  const handleCancel = () => fetch(`/api/jobs/${job.id}/cancel`, { method: 'POST' });
   const handleArchive = () => fetch(`/api/jobs/${job.id}/archive`, { method: 'POST' });
-  const handleDelete = () => {
-    if (confirm('Delete job? ⚠️ this will also delete the files')) {
-      fetch(`/api/jobs/${job.id}/delete`, { method: 'POST' }).then(() => deleteJob(job.id));
+  const handleCleanup = () => {
+    if (confirm('⚠️  Cleanup files? this will delete the files on disk')) {
+      fetch(`/api/jobs/${job.id}/cleanup`, { method: 'POST' });
     }
   };
 
@@ -366,8 +367,7 @@ const SelectedJobPane = () => {
       <div style={{ marginTop: '0.6rem', display: 'flex', gap: '1.2rem', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <div className="row" style={{ marginBottom: '0.5rem' }}>
-            {job.status === 'failed' && <button className="secondary" onClick={handleRetry}>Retry</button>}
-            {files.length > 0 && (
+            {files.length > 0 && job.status !== 'cleaned' && (
               <button className="secondary" onClick={() => {
                 window.location.href = files.length === 1 
                   ? `/api/jobs/${job.id}/files/${files[0].id}`
@@ -377,8 +377,16 @@ const SelectedJobPane = () => {
               </button>
             )}
             {job.original_url && <button className="secondary" onClick={() => window.open(job.original_url, '_blank')}>Open original</button>}
-            {!job.archived && <button className="secondary" onClick={handleArchive}>Archive</button>}
-            <button className="secondary danger" onClick={handleDelete}>Delete</button>
+            {!job.archived && job.status !== 'running' && job.status !== 'queued' && (
+              <button className="secondary" onClick={handleArchive}>Archive</button>
+            )}
+            {job.status !== 'cleaned' && job.status !== 'running' && job.status !== 'queued' && (
+              <button className="secondary danger" onClick={handleCleanup}>Cleanup Files</button>
+            )}
+            {job.status === 'running' && <button className="secondary danger" onClick={handleCancel}>Cancel</button>}
+            {(job.status === 'failed' || job.status === 'cancelled' || job.status === 'cleaned') && (
+              <button className="secondary" onClick={handleRetry}>Retry</button>
+            )}
           </div>
 
           <div className="files-area">
