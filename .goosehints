@@ -1,0 +1,14 @@
+# Context
+README.md and CONTRIBUTING.md are full of context about this project, they're good reads if you want to gather context.
+It's important to keep them up to date as major changes to the project happen (not for small additions, but for new features or refactors).
+
+# Rules
+NEVER load up files from /static/ into your context, it only includes the bundled files from /frontend/.
+NEVER run the built project binary yourself (i.e `go run`), ask human to do it. BEFORE confirming a bugfix, ALWAYS do a `make build` to ensure things build correctly.
+NEVER delete files without confirming with human first. every single time.
+
+# Pitfalls to avoid
+## Note on special characters
+When dealing with special characters/text literals in code, store them in internal/chars/chars.go, and be EXTRA careful when handling that file.
+For example: `summaryLine := chars.NewLine + fmt.Sprintf`...
+
