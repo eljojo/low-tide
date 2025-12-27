@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
+import { styled } from 'goober';
 
 const THEMES = [
   { id: 'archivist', name: 'The Archivist' },
@@ -24,37 +25,27 @@ export const ThemeSwitcher = () => {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-      <label htmlFor="theme-switcher" style={{ 
-        fontSize: '0.65rem', 
-        textTransform: 'uppercase', 
-        margin: 0, 
-        color: 'var(--muted)',
-        fontWeight: 700,
-        letterSpacing: '0.05em'
-      }}>
+    <Container>
+      <label className="lt-label" style={{ margin: 0, fontSize: '0.65rem' }} htmlFor="theme-switcher">
         Surface
       </label>
       <select 
+        className="lt-select"
+        style={{ width: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
         id="theme-switcher" 
         onChange={handleChange} 
-        value={selectedTheme} 
-        style={{ 
-          fontSize: '0.75rem', 
-          background: 'var(--card-bg)', 
-          color: 'var(--fg)', 
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--border-radius)',
-          padding: '0.2rem 0.5rem',
-          cursor: 'pointer',
-          outline: 'none',
-          fontFamily: 'inherit'
-        }}
+        value={selectedTheme}
       >
         {THEMES.map(theme => (
           <option key={theme.id} value={theme.id}>{theme.name}</option>
         ))}
       </select>
-    </div>
+    </Container>
   );
 };
+
+const Container = styled('div')`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;

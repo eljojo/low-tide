@@ -28,6 +28,10 @@ export const useJobStore = create<AppState>((set) => ({
   })),
 
   selectJob: (id, pinned = true) => set((state) => {
+    if (id === null) {
+      return { selectedJobId: null, isPinned: false };
+    }
+
     const job = state.jobs[id];
     // Fetch logs if they haven't been loaded yet,
     // or if the job is running (meaning logs are constantly changing).

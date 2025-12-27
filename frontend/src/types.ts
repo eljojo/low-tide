@@ -28,7 +28,7 @@ export interface AppState {
   consoleCollapsed: boolean;
   setJobs: (jobs: Job[]) => void;
   updateJob: (job: Job) => void;
-  selectJob: (id: number, pinned?: boolean) => void;
+  selectJob: (id: number | null, pinned?: boolean) => void;
   setIsPinned: (pinned: boolean) => void;
   deleteJob: (id: number) => void;
   toggleArchived: () => void;

@@ -2,19 +2,6 @@
    TERMINAL & LOGS
    ========================================================================== */
 
-#log-view {
-  background: #0f0f11;
-  border-radius: var(--border-radius);
-  padding: 1.5rem;
-  font-size: 0.9rem;
-  height: 540px;
-  border: 1px solid var(--border-color);
-  overflow: auto;
-  color: #d1d1d1;
-  line-height: 1.6;
-  font-family: var(--font-mono);
-}
-
 .term-container {
   font-family: var(--font-mono);
   white-space: pre-wrap;

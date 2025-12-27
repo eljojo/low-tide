@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { styled } from 'goober';
 import { ThemeSwitcher } from './ThemeSwitcher';
 
 const SAYINGS = [
@@ -20,16 +21,22 @@ export const Footer = () => {
   const [saying, setSaying] = useState(SAYINGS[0]);
 
   useEffect(() => {
-    const randomSaying = SAYINGS[Math.floor(Math.random() * SAYINGS.length)];
-    setSaying(randomSaying);
+    const random = SAYINGS[Math.floor(Math.random() * SAYINGS.length)];
+    setSaying(random);
   }, []);
 
   return (
     <footer>
-      <span title={saying.english} style={{ opacity: 0.8 }}>
-        &ldquo;{saying.latin}&rdquo;
-      </span>
+      <Saying title={saying.english}>
+        “{saying.latin}”
+      </Saying>
       <ThemeSwitcher />
     </footer>
   );
 };
+
+const Saying = styled('span')`
+  font-style: italic;
+  font-family: var(--font-main);
+  opacity: 0.8;
+`;
