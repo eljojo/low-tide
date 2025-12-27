@@ -1,0 +1,19 @@
+# Context (frontend/src/)
+The frontend is intentionally a thin view over server state.
+
+## State model
+- Zustand store is the main state container (`useJobStore`).
+- Server is the source of truth; the UI mostly merges in server job snapshots.
+
+## WebSocket protocol (high level)
+- `/ws/state` emits:
+  - `{ type: "job_snapshot", job, updated_at }` => update one job
+  - `{ type: "job_log", job_id, lines }` => stream terminal delta lines
+  - `{ type: "jobs_archived" }` => refetch list
+
+## Performance decisions
+- Logs are stored outside React state (`logBuffers`) to avoid rerender pressure.
+- Job logs are fetched lazily on selection, and refreshed if the job is running.
+
+## Styling
+- Follow `frontend/.goosehints` (Mini Framework + theming + goober). Don’t add utility-class soup.
