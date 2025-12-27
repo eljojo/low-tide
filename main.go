@@ -347,6 +347,11 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) {
+	j, err := store.GetJob(s.DB, jobID)
+	if err != nil {
+		http.Error(w, "job not found", 404)
+		return
+	}
 	files, err := store.ListJobFiles(s.DB, jobID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -357,9 +362,9 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 		return
 	}
 
-	// Prepare zip download
-	// TODO: give this a nicer safe name based on job info
-	setDownloadHeaders(w, "job.zip")
+	safeTitle := parameterize(j.Title, fmt.Sprintf("job-%d", jobID))
+
+	setDownloadHeaders(w, safeTitle+".zip")
 
 	zw := newZipWriter(w, s.Cfg.WatchDir)
 	defer zw.Close()

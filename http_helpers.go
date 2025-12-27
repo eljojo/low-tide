@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 
 	"mime"
 	"net/url"
@@ -90,6 +91,21 @@ func toRelPath(root, abs string) string {
 	}
 	return rel
 }
+
+// parameterize creates a URL-safe version of the string, similar to Rails parameterize.
+// e.g. "This is my Happy String" -> "this-is-my-happy-string"
+func parameterize(s string, fallback string) string {
+	f := func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}
+	parts := strings.FieldsFunc(strings.ToLower(s), f)
+	res := strings.Join(parts, "-")
+	if res == "" {
+		return fallback
+	}
+	return res
+}
+
 
 // zip helpers
 
