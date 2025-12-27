@@ -171,14 +171,6 @@ footer {
   padding: 0.3rem 0.75rem;
 }
 
-/* Standard Grid System for Lists */
-.lt-grid-container {
-  display: grid;
-  grid-template-rows: auto 1fr; /* Header + Content */
-  height: 100%;
-  overflow: hidden;
-}
-
 /* Status & Indicators */
 .lt-pill {
   padding: 0.25rem 0.75rem;
@@ -212,21 +204,6 @@ footer {
   margin-right: 0.5rem;
 }
 
-.lt-indicator-dot-success {
-  background: #2ecc71;
-  box-shadow: 0 0 8px #2ecc71;
-}
-
-/* Helper for when an indicator needs to be inline but not pulsing */
-.lt-indicator-static {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 0.5rem;
-  background: var(--muted);
-}
-
 /* Standardized Job Item */
 .lt-job-item {
   /* Base styles are in component, but this allows themes to target it */
@@ -248,19 +225,6 @@ footer {
   background: rgba(0,0,0,0.2);
   border-radius: 3px;
 }
-
-/* File Grid Elements */
-.lt-file-hero,
-.lt-file-grid {
-  /* Base styles */
-}
-
-.lt-file-grid-header {
-  /* Base styles */
-}
-
-.lt-terminal {}
-.lt-log-view {}
 
 /* One-off Utility for new job form to ensure it aligns nicely */
 .new-job-card {
