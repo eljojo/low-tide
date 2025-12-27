@@ -115,6 +115,33 @@ func (m *Manager) worker() {
 	}
 }
 
+func (m *Manager) RecoverJobs() {
+	// 1. Mark 'running' jobs as 'cancelled'
+	running, err := store.ListJobsByStatus(m.DB, store.StatusRunning)
+	if err != nil {
+		log.Printf("recovery: failed to list running jobs: %v", err)
+	} else {
+		for _, j := range running {
+			log.Printf("recovery: marking running job %d as cancelled", j.ID)
+			finished := time.Now()
+			// We don't have the terminal state, so we just use the existing logs if any
+			_ = store.MarkJobCancelled(m.DB, j.ID, finished, j.Logs+chars.NewLine+"[SYSTEM] Job cancelled due to server restart.")
+		}
+	}
+
+	// 2. Add 'queued' jobs back to the in-memory queue
+	queued, err := store.ListJobsByStatus(m.DB, store.StatusQueued)
+	if err != nil {
+		log.Printf("recovery: failed to list queued jobs: %v", err)
+	} else {
+		for _, j := range queued {
+			log.Printf("recovery: re-queuing job %d", j.ID)
+			m.Queue <- j.ID
+		}
+	}
+}
+
+
 func (m *Manager) filesPublisher() {
 	t := time.NewTicker(100 * time.Millisecond)
 	defer t.Stop()

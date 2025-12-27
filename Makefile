@@ -1,6 +1,7 @@
 .PHONY: build build-frontend clean run
 
 build: build-frontend
+	@echo "Building Go application..."
 	@go build
 	@echo "Build complete."
 

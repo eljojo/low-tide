@@ -210,6 +210,24 @@ func GetJob(db *sql.DB, id int64) (*Job, error) {
 	return scanJob(row)
 }
 
+func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
+	rows, err := db.Query(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE status = ?`, string(status))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Job
+	for rows.Next() {
+		j, err := scanJob(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *j)
+	}
+	return out, rows.Err()
+}
+
+
 func ListJobs(db *sql.DB, limit int) ([]Job, error) {
 	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
 	q += ` ORDER BY created_at DESC`

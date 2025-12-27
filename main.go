@@ -69,6 +69,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("new manager: %v", err)
 	}
+	mgr.RecoverJobs()
+
 
 	srv := &Server{DB: db, Cfg: cfg, Mgr: mgr}
 
