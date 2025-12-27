@@ -36,7 +36,6 @@ export const FileManifest = ({ job }: FileManifestProps) => {
   const hasFiles = files.length > 0;
   const isCleaned = status === 'cleaned';
 
-  // Specific state for queued jobs
   if (status === 'queued') {
     return (
       <ManifestSection>
@@ -45,8 +44,6 @@ export const FileManifest = ({ job }: FileManifestProps) => {
     );
   }
 
-  // Hide the manifest section entirely for running or failed jobs 
-  // that don't have any files to show yet.
   if (!hasFiles && (status === 'running' || status === 'failed')) {
     return null;
   }

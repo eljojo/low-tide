@@ -4,7 +4,7 @@ export const Header = () => {
   return (
     <header>
       <BrandLink href="/">
-        <Title>Low Tide</Title>
+        <Title>🌊Low Tide</Title>
       </BrandLink>
     </header>
   );

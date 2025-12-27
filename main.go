@@ -194,11 +194,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if len(ids) == 1 {
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": ids[0]})
-		} else {
-			_ = json.NewEncoder(w).Encode(map[string]any{"ids": ids})
-		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"ids": ids})
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}

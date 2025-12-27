@@ -43,10 +43,12 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
   const handleCancel = () => fetch(`/api/jobs/${job.id}/cancel`, { method: 'POST' });
   const handleArchive = () => fetch(`/api/jobs/${job.id}/archive`, { method: 'POST' });
   const handleCleanup = () => {
-    if (confirm('⚠️  Cleanup files? this will delete the files on disk')) {
+    if (confirm('⚠️ Cleanup files? this will delete the files on disk')) {
       fetch(`/api/jobs/${job.id}/cleanup`, { method: 'POST' });
     }
   };
+  const files = job.files || [];
+  const hasFiles = files.length > 0;
 
   return (
     <PaneHeader>
@@ -65,10 +67,10 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
             Source
           </button>
         )}
-        {!job.archived && job.status !== 'running' && job.status !== 'queued' && (
+        {!job.archived && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
           <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleArchive}>Archive</button>
         )}
-        {job.status !== 'cleaned' && job.status !== 'running' && job.status !== 'queued' && (
+        {hasFiles && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
           <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCleanup}>Cleanup</button>
         )}
         {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>}

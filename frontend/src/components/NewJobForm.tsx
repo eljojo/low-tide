@@ -38,9 +38,7 @@ export const NewJobForm = () => {
       formRef.current.reset();
       const job = await res.json();
       let targetId = 0;
-      if (job.id) {
-        targetId = job.id;
-      } else if (job.ids && job.ids.length > 0) {
+      if (job.ids && job.ids.length > 0) {
         targetId = job.ids[0];
       }
       

@@ -11,8 +11,7 @@ const LayoutWrapper = styled(ListContainer)`
 const List = styled(ListScrollArea)``;
 const Header = styled(ListHeader)``;
 
-const SubTitle = styled('h3')`
-`;
+const SubTitle = styled('h3')``;
 
 const Item = styled('div')<{ selected?: boolean }>`
   padding: 1rem 1.25rem;
@@ -87,7 +86,7 @@ export const JobsList = () => {
           </button>
         )}
       </Header>
-      
+
       <List className="lt-mono">
         <SubTitle className="lt-label">Active</SubTitle>
         {activeJobs.map(j => <JobItem key={j.id} job={j} selected={selectedJobId === j.id} />)}
