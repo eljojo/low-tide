@@ -117,7 +117,10 @@ export const SelectedJobPane = () => {
   const title = job.title || job.url || job.original_url || `#${job.id}`;
   const files = job.files || [];
 
-  const handleRetry = () => fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
+  const handleRetry = () => {
+    fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
+    useJobStore.getState().setConsoleCollapsed(false);
+  };
   const handleCancel = () => fetch(`/api/jobs/${job.id}/cancel`, { method: 'POST' });
   const handleArchive = () => fetch(`/api/jobs/${job.id}/archive`, { method: 'POST' });
   const handleCleanup = () => {
@@ -150,11 +153,11 @@ export const SelectedJobPane = () => {
           {job.status !== 'cleaned' && job.status !== 'running' && job.status !== 'queued' && (
             <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCleanup}>Cleanup</button>
           )}
-          {job.status === 'running' && (
-            <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>
-          )}
+          {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>}
           {(job.status === 'failed' || job.status === 'cancelled' || job.status === 'cleaned') && (
-            <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleRetry}>Retry</button>
+            <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleRetry}>
+              {job.status === 'cleaned' ? 'Download again' : 'Retry'}
+            </button>
           )}
         </div>
       </PaneHeader>
@@ -181,9 +184,11 @@ export const SelectedJobPane = () => {
                 <div className="lt-meta" style={{ marginTop: '0.2rem' }}>{humanSize(files[0].size_bytes)}</div>
               </div>
             </div>
-            <button className="lt-btn" onClick={() => window.location.href = `/api/jobs/${job.id}/files/${files[0].id}`}>
-              Download
-            </button>
+            {job.status !== 'cleaned' && (
+              <button className="lt-btn" onClick={() => window.location.href = `/api/jobs/${job.id}/files/${files[0].id}`}>
+                Download
+              </button>
+            )}
           </SingleFileHero>
         ) : (
           <MultiFileGrid>
@@ -200,16 +205,20 @@ export const SelectedJobPane = () => {
                   </div>
                   <div className="lt-meta">{humanSize(f.size_bytes)}</div>
                   <div className="lt-text-right">
-                    <a href={`/api/jobs/${job.id}/files/${f.id}`} style={{ color: 'var(--accent2)', textDecoration: 'none', fontSize: '0.75rem', fontWeight: 800 }}>GET</a>
+                    {job.status !== 'cleaned' && (
+                      <a href={`/api/jobs/${job.id}/files/${f.id}`} style={{ color: 'var(--accent2)', textDecoration: 'none', fontSize: '0.75rem', fontWeight: 800 }}>GET</a>
+                    )}
                   </div>
                 </GridRow>
               ))}
             </div>
-            <div style={{ padding: '1rem 1.25rem', background: 'rgba(0,0,0,0.02)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
-               <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${job.id}/zip`}>
-                 Download all as ZIP
-               </button>
-            </div>
+            {job.status !== 'cleaned' && (
+              <div style={{ padding: '1rem 1.25rem', background: 'rgba(0,0,0,0.02)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
+                 <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${job.id}/zip`}>
+                   Download all as ZIP
+                 </button>
+              </div>
+            )}
           </MultiFileGrid>
         )}
       </ManifestSection>

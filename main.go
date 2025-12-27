@@ -309,13 +309,13 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		// 1. Remove files from disk
-		if err := s.deleteJobArtifacts(id); err != nil {
+		// 1. Set status to cleaned and archived in DB first
+		if err := store.MarkJobCleaned(s.DB, id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// 2. Set status to cleaned and archived in DB
-		if err := store.MarkJobCleaned(s.DB, id); err != nil {
+		// 2. Remove files from disk (watcher will now ignore these)
+		if err := s.deleteJobArtifacts(id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}

@@ -289,6 +289,10 @@ func (m *Manager) handleFileEvent(path string) {
 		return
 	}
 
+	if m.isBaseline(absPath) {
+		return
+	}
+
 	exists, _ := store.JobFileExists(m.DB, jobID, absPath)
 	if !exists {
 		log.Printf("job %d: found new file: %s", jobID, m.toRel(absPath))
@@ -310,21 +314,23 @@ func (m *Manager) handleRemoveEvent(path string) {
 		return
 	}
 
-	if jobID := m.CurrentJobID(); jobID != 0 {
-		_ = store.DeleteJobFileByPath(m.DB, jobID, absPath)
-		m.markDirty(jobID)
+	jobID := m.CurrentJobID()
+	if jobID == 0 {
 		return
 	}
 
-	// No current job: delete across all jobs that recorded this exact path.
-	rows, err := store.ListJobFilesByPath(m.DB, absPath)
-	if err != nil {
-		return
+	_ = store.DeleteJobFileByPath(m.DB, jobID, absPath)
+	m.markDirty(jobID)
+}
+
+func (m *Manager) isBaseline(path string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.current == nil || m.current.baseline == nil {
+		return false
 	}
-	for _, f := range rows {
-		_ = store.DeleteJobFileByPath(m.DB, f.JobID, absPath)
-		m.markDirty(f.JobID)
-	}
+	_, ok := m.current.baseline[path]
+	return ok
 }
 
 func (m *Manager) CurrentJobID() int64 {
