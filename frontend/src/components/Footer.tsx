@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 const SAYINGS = [
   { latin: "Utere legitime.", english: "Use lawfully." },
@@ -17,18 +18,19 @@ const SAYINGS = [
 ];
 
 export const Footer = () => {
-  const [sayings, setSayings] = useState([SAYINGS[0], SAYINGS[1]]);
+  const [saying, setSaying] = useState(SAYINGS[0]);
 
   useEffect(() => {
-    // Shuffle and pick first two
-    const shuffled = [...SAYINGS].sort(() => 0.5 - Math.random());
-    setSayings([shuffled[0], shuffled[1]]);
+    const randomSaying = SAYINGS[Math.floor(Math.random() * SAYINGS.length)];
+    setSaying(randomSaying);
   }, []);
 
   return (
-    <footer style={{ display: 'flex', justifyContent: 'space-between' }}>
-      <span title={sayings[0].english}>{sayings[0].latin}</span>
-      <span title={sayings[1].english}>{sayings[1].latin}</span>
+    <footer>
+      <span title={saying.english} style={{ opacity: 0.8 }}>
+        &ldquo;{saying.latin}&rdquo;
+      </span>
+      <ThemeSwitcher />
     </footer>
   );
 };

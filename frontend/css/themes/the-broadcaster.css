@@ -1,0 +1,70 @@
+/* THEME: The Broadcaster */
+body[data-theme='the-broadcaster'] {
+  --bg: #e0e0e0;
+  --fg: #000000;
+  --accent: #222222;
+  --accent2: #0055cc;
+  --muted: #666666;
+  --card-bg: #ffffff;
+  --danger: #cc0000;
+  --font-main: 'Helvetica', 'Arial', sans-serif;
+  --font-mono: 'Monaco', 'Courier New', monospace;
+  --border-radius: 0px;
+  --shadow: 4px 4px 0px rgba(0,0,0,0.1);
+}
+
+body[data-theme='the-broadcaster'] header {
+  border-bottom: 4px solid var(--fg);
+  padding: 2rem;
+}
+
+body[data-theme='the-broadcaster'] h1 {
+  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+body[data-theme='the-broadcaster'] .card {
+  border: 2px solid var(--fg);
+  box-shadow: 8px 8px 0px rgba(0,0,0,1);
+}
+
+body[data-theme='the-broadcaster'] h2 {
+  background: var(--fg);
+  color: var(--card-bg);
+  padding: 0.4rem 1rem;
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+}
+
+body[data-theme='the-broadcaster'] button {
+  border: 2px solid var(--fg);
+  box-shadow: 4px 4px 0px rgba(0,0,0,1);
+  border-radius: 0;
+}
+
+body[data-theme='the-broadcaster'] button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px rgba(0,0,0,1);
+}
+
+body[data-theme='the-broadcaster'] .job-item {
+  border: 1px solid var(--fg);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-theme='the-broadcaster'] .job-item.selected {
+  background: var(--fg);
+  color: var(--card-bg);
+}
+
+body[data-theme='the-broadcaster'] .job-item.selected .status-pill {
+  background: var(--card-bg);
+  color: var(--fg);
+}
+
+body[data-theme='the-broadcaster'] #log-view {
+  background: #f8f8f8;
+  color: #000;
+  border: 2px solid var(--fg);
+}

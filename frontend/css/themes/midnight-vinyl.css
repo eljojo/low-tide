@@ -1,0 +1,47 @@
+/* THEME: Midnight Vinyl */
+body[data-theme='midnight-vinyl'] {
+  --bg: #0a0a0b;
+  --fg: #d1d1d1;
+  --accent: #ff0055;
+  --accent2: #00f2ff;
+  --muted: #666;
+  --card-bg: #141416;
+  --danger: #ff3b3b;
+  --font-main: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --border-radius: 8px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+body[data-theme='midnight-vinyl'] header {
+  border-bottom: 1px solid #222;
+}
+
+body[data-theme='midnight-vinyl'] .card {
+  border: 1px solid #222;
+}
+
+body[data-theme='midnight-vinyl'] textarea, 
+body[data-theme='midnight-vinyl'] input, 
+body[data-theme='midnight-vinyl'] select {
+  background: #1a1a1c;
+  border-color: #333;
+}
+
+body[data-theme='midnight-vinyl'] .job-item {
+  background: #1a1a1c;
+}
+
+body[data-theme='midnight-vinyl'] .job-item.selected {
+  background: #232326;
+  border-color: var(--accent2);
+}
+
+body[data-theme='midnight-vinyl'] #log-view {
+  background: #000;
+  border-color: #222;
+}
+
+body[data-theme='midnight-vinyl'] footer {
+  border-top: 1px solid #222;
+}
