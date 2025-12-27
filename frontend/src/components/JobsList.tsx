@@ -2,14 +2,14 @@ import { Job } from '../types';
 import { useJobStore } from '../store';
 import { fetchJobDetails } from '../api';
 import { styled } from 'goober';
-import { GridContainer, GridHeader, GridScrollArea } from './common/Grid';
+import { ListContainer, ListHeader, ListScrollArea } from './common/ListView';
 
-const LayoutWrapper = styled(GridContainer)`
+const LayoutWrapper = styled(ListContainer)`
   grid-column: 2;
 `;
 
-const List = styled(GridScrollArea)``;
-const Header = styled(GridHeader)``;
+const List = styled(ListScrollArea)``;
+const Header = styled(ListHeader)``;
 
 const SubTitle = styled('h3')`
 `;

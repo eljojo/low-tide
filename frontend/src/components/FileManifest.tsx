@@ -1,6 +1,7 @@
 import { styled } from 'goober';
 import { Job, FileRecord } from '../types';
 import { humanSize } from '../utils';
+import { TableContainer, TableRow, TableScrollArea, TableFooter } from './common/Table';
 
 const ManifestSection = styled('section')`
   margin-bottom: 2.5rem;
@@ -23,32 +24,6 @@ const SingleFileHero = styled('div')`
   background: var(--input-bg);
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
-`;
-
-const MultiFileGrid = styled('div')`
-  overflow: hidden;
-  background: var(--input-bg);
-  border-radius: var(--border-radius);
-  border: 1px solid var(--border-color);
-`;
-
-const GridRow = styled('div')<{ isHeader?: boolean }>`
-  display: grid;
-  grid-template-columns: 1fr 120px 100px;
-  align-items: center;
-  padding: ${props => props.isHeader ? '0.8rem 1.25rem' : '0.9rem 1.25rem'};
-  font-size: ${props => props.isHeader ? '0.7rem' : '0.9rem'};
-  text-transform: ${props => props.isHeader ? 'uppercase' : 'none'};
-  font-weight: ${props => props.isHeader ? '800' : 'normal'};
-  color: ${props => props.isHeader ? 'var(--muted)' : 'inherit'};
-  background: ${props => props.isHeader ? 'rgba(0,0,0,0.02)' : 'transparent'};
-  border-bottom: 1px solid var(--border-color);
-  transition: background-color 0.2s;
-
-  ${props => !props.isHeader && `
-    &:hover { background: rgba(0,0,0,0.02); }
-    &:last-child { border-bottom: none; }
-  `}
 `;
 
 interface FileManifestProps {
@@ -90,15 +65,15 @@ export const FileManifest = ({ job }: FileManifestProps) => {
           )}
         </SingleFileHero>
       ) : (
-        <MultiFileGrid className="lt-file-grid">
-          <GridRow isHeader className="lt-file-grid-header">
+        <TableContainer className="lt-file-grid">
+          <TableRow isHeader className="lt-file-grid-header">
             <div>Name</div>
             <div>Size</div>
             <div className="lt-text-right">Actions</div>
-          </GridRow>
-          <div className="lt-scrollable" style={{ maxHeight: '320px' }}>
+          </TableRow>
+          <TableScrollArea className="lt-scrollable">
             {files.map(f => (
-              <GridRow key={f.id}>
+              <TableRow key={f.id}>
                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
                   {f.path.split('/').pop()}
                 </div>
@@ -108,17 +83,17 @@ export const FileManifest = ({ job }: FileManifestProps) => {
                     <a href={`/api/jobs/${job.id}/files/${f.id}`} style={{ color: 'var(--accent2)', textDecoration: 'none', fontSize: '0.75rem', fontWeight: 800 }}>GET</a>
                   )}
                 </div>
-              </GridRow>
+              </TableRow>
             ))}
-          </div>
+          </TableScrollArea>
           {!isCleaned && (
-            <div style={{ padding: '1rem 1.25rem', background: 'rgba(0,0,0,0.02)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
+            <TableFooter>
                <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${job.id}/zip`}>
                  Download all as ZIP
                </button>
-            </div>
+            </TableFooter>
           )}
-        </MultiFileGrid>
+        </TableContainer>
       )}
     </ManifestSection>
   );

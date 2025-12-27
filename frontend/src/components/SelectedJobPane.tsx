@@ -27,7 +27,7 @@ const LogView = styled('div')<{ collapsed: boolean }>`
   line-height: 1.6;
   font-family: var(--font-mono);
   transition: all 0.3s ease-in-out;
-  border: ${props => props.collapsed ? 'none' : '1px solid var(--border-color)'};
+  border: ${props => props.collapsed ? 'none !important' : '1px solid var(--border-color)'};
   height: ${props => props.collapsed ? '0' : '400px'};
   padding: ${props => props.collapsed ? '0' : '1.5rem'};
   margin-top: ${props => props.collapsed ? '0' : '1rem'};

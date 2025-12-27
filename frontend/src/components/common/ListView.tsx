@@ -1,19 +1,19 @@
 import { styled } from 'goober';
 
-export const GridContainer = styled('div')`
+export const ListContainer = styled('div')`
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
   overflow: hidden;
 `;
 
-export const GridHeader = styled('div')`
+export const ListHeader = styled('div')`
   display: flex;
   justify-content: space-between;
   align-items: center;
 `;
 
-export const GridScrollArea = styled('div')`
+export const ListScrollArea = styled('div')`
   max-height: 70vh;
   overflow-y: auto;
   padding-right: 0.5rem;
