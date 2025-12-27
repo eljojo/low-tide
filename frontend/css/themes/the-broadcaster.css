@@ -17,16 +17,11 @@ body[data-theme='the-broadcaster'] {
 }
 
 /* Broadcaster Theme Enhancements */
-body[data-theme='the-broadcaster'] .single-file-hero,
-body[data-theme='the-broadcaster'] .multi-file-grid {
+body[data-theme='the-broadcaster'] .lt-file-hero,
+body[data-theme='the-broadcaster'] .lt-file-grid {
   border: 2px solid var(--fg) !important;
   box-shadow: 4px 4px 0px var(--fg) !important;
   border-radius: 0 !important;
-}
-
-body[data-theme='the-broadcaster'] .file-grid-header {
-  background: var(--fg) !important;
-  color: var(--card-bg) !important;
 }
 
 body[data-theme='the-broadcaster'] header {
@@ -42,17 +37,26 @@ body[data-theme='the-broadcaster'] h1 {
   letter-spacing: 0.05em;
 }
 
+body[data-theme='the-broadcaster'] .lt-card,
 body[data-theme='the-broadcaster'] .card {
   border: 3px solid var(--fg);
   box-shadow: 10px 10px 0px var(--fg);
+}
+
+/* Override for grid headers within the theme */
+body[data-theme='the-broadcaster'] .lt-file-grid-header {
+  background: var(--fg) !important;
+  color: var(--card-bg) !important;
+  text-transform: uppercase;
+  font-weight: 900;
 }
 
 body[data-theme='the-broadcaster'] h2 {
   background: var(--fg);
   color: var(--card-bg);
   padding: 0.6rem 1rem;
-  margin: -2rem -2rem 2rem -2rem;
-  font-size: 0.9rem;
+  margin: -2rem -2rem 2rem -2rem; /* Pull to edges of card */
+  font-size: 0.9rem; 
 }
 
 /* Explicitly target the Pane Title h2 to override the "Banner" style */
@@ -69,18 +73,19 @@ body[data-theme='the-broadcaster'] .pane-title-group h2 {
   line-height: 1;
 }
 
+body[data-theme='the-broadcaster'] .lt-btn,
 body[data-theme='the-broadcaster'] button {
   border: 3px solid var(--fg);
   box-shadow: 4px 4px 0px var(--fg);
+  border-radius: 0 !important;
 }
-
-body[data-theme='the-broadcaster'] .job-item.selected {
+body[data-theme='the-broadcaster'] .lt-job-item.selected {
   background: var(--fg);
   color: var(--card-bg);
   border-color: var(--fg);
 }
 
-body[data-theme='the-broadcaster'] .status-pill {
+body[data-theme='the-broadcaster'] .lt-pill {
   background: #fff !important;
   color: #000 !important;
   border: 2px solid #000 !important;
@@ -88,27 +93,26 @@ body[data-theme='the-broadcaster'] .status-pill {
   font-weight: 900;
 }
 
-body[data-theme='the-broadcaster'] .status-running { border-color: #00ff00 !important; }
-body[data-theme='the-broadcaster'] .status-success { border-color: #00ff00 !important; }
-body[data-theme='the-broadcaster'] .status-failed  { border-color: #ff0000 !important; }
-body[data-theme='the-broadcaster'] .status-queued  { border-color: #888 !important; }
+body[data-theme='the-broadcaster'] .lt-pill-running { border-color: #00ff00 !important; }
+body[data-theme='the-broadcaster'] .lt-pill-success { border-color: #00ff00 !important; }
+body[data-theme='the-broadcaster'] .lt-pill-failed  { border-color: #ff0000 !important; }
+body[data-theme='the-broadcaster'] .lt-pill-queued  { border-color: #888 !important; }
 
-body[data-theme='the-broadcaster'] #log-view {
+body[data-theme='the-broadcaster'] .lt-log-view {
   background: #ffffff;
   color: #000;
   border: 3px solid var(--fg);
 }
-
 /* Theme-specific indicator overrides */
 body[data-theme='the-broadcaster'] #global-indicator,
+body[data-theme='the-broadcaster'] .lt-indicator-dot,
+body[data-theme='the-broadcaster'] .lt-indicator-static,
 body[data-theme='the-broadcaster'] .indicator {
   animation: none;
-  border-radius: 0;
+  width: 12px;
+  height: 12px;
   background: #00ff00;
   border: 2px solid #000;
   box-shadow: none;
-}
-
-body[data-theme='the-broadcaster'] .blob {
-  display: none;
+  border-radius: 0 !important;
 }

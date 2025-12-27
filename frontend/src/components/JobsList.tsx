@@ -2,24 +2,16 @@ import { Job } from '../types';
 import { useJobStore } from '../store';
 import { fetchJobDetails } from '../api';
 import { styled } from 'goober';
+import { GridContainer, GridHeader, GridScrollArea } from './common/Grid';
 
-const LayoutWrapper = styled('section')`
+const LayoutWrapper = styled(GridContainer)`
   grid-column: 2;
 `;
 
-const Header = styled('div')`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
+const List = styled(GridScrollArea)``;
+const Header = styled(GridHeader)``;
 
 const SubTitle = styled('h3')`
-`;
-
-const List = styled('div')`
-  max-height: 70vh;
-  overflow-y: auto;
-  padding-right: 0.5rem;
 `;
 
 const Item = styled('div')<{ selected?: boolean }>`
@@ -60,15 +52,15 @@ const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
   };
 
   return (
-    <Item selected={selected} onClick={handleClick}>
+    <Item className="lt-job-item" selected={selected} onClick={handleClick}>
       <div className="lt-flex-between" style={{ gap: '1.2rem' }}>
         <TitleContainer>
-          {job.status === 'running' && <span className="lt-indicator-dot"></span>}
           <TitleText>
             {job.title || job.url || job.original_url || `Job #${job.id}`}
           </TitleText>
         </TitleContainer>
         <div className={`lt-pill lt-pill-${job.status}`}>
+          {job.status === 'running' && <span className="lt-indicator-dot"></span>}
           {job.status.toUpperCase()}
         </div>
       </div>
@@ -87,7 +79,7 @@ export const JobsList = () => {
 
   return (
     <LayoutWrapper className="lt-card">
-      <Header className="lt-flex-between">
+      <Header>
         <h2 className="lt-title-section" style={{ border: 'none' }}>Jobs</h2>
         {archivedJobs.length > 0 && (
           <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={toggleArchived}>
@@ -96,19 +88,17 @@ export const JobsList = () => {
         )}
       </Header>
       
-      <SubTitle className="lt-label">Active</SubTitle>
       <List className="lt-mono">
+        <SubTitle className="lt-label">Active</SubTitle>
         {activeJobs.map(j => <JobItem key={j.id} job={j} selected={selectedJobId === j.id} />)}
-      </List>
 
-      {showArchived && (
-        <section style={{ marginTop: '1.5rem' }}>
-          <SubTitle className="lt-label">Archived</SubTitle>
-          <List className="lt-mono">
+        {showArchived && (
+          <section style={{ marginTop: '1.5rem' }}>
+            <SubTitle className="lt-label">Archived</SubTitle>
             {archivedJobs.map(j => <JobItem key={j.id} job={j} selected={selectedJobId === j.id} />)}
-          </List>
-        </section>
-      )}
+          </section>
+        )}
+      </List>
     </LayoutWrapper>
   );
 };

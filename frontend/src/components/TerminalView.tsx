@@ -62,5 +62,5 @@ export const TerminalView = ({ jobId }: { jobId: number }) => {
     };
   }, [jobId]);
 
-  return <div ref={termRef} className="terminal-container term-container" />;
+  return <div ref={termRef} className="lt-terminal" />;
 };

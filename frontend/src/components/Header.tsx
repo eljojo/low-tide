@@ -3,7 +3,6 @@ import { styled } from 'goober';
 export const Header = () => {
   return (
     <header>
-      <div className="blob"></div>
       <BrandLink href="/">
         <Title>Low Tide</Title>
       </BrandLink>

@@ -51,7 +51,7 @@ export const NewJobForm = () => {
   };
 
   return (
-    <LayoutWrapper className="lt-card">
+    <LayoutWrapper className="lt-card new-job-card">
       <Title className="lt-title-section" style={{ border: 'none' }}>New Download Job</Title>
       <form ref={formRef} onSubmit={handleSubmit}>
         <FieldWrapper>

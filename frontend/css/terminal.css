@@ -2,7 +2,7 @@
    TERMINAL & LOGS
    ========================================================================== */
 
-.term-container {
+.lt-terminal {
   font-family: var(--font-mono);
   white-space: pre-wrap;
 }

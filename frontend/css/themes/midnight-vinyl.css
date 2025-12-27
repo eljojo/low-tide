@@ -16,43 +16,34 @@ body[data-theme='midnight-vinyl'] {
   --border-color: #2a2a2e;
 }
 
-body[data-theme='midnight-vinyl'] button.secondary {
+/* Target the framework class, not the element */
+body[data-theme='midnight-vinyl'] .lt-btn-secondary {
   background: rgba(255,255,255,0.05);
 }
 
-body[data-theme='midnight-vinyl'] .job-item {
-  background: rgba(255,255,255,0.02);
-}
+body[data-theme='midnight-vinyl'] .lt-pill-queued { background: #222; color: #666; }
+body[data-theme='midnight-vinyl'] .lt-pill-success { background: rgba(39, 174, 96, 0.1); color: #2ecc71; }
 
-body[data-theme='midnight-vinyl'] .status-queued { background: #222; color: #666; }
-body[data-theme='midnight-vinyl'] .status-success { background: rgba(39, 174, 96, 0.1); color: #2ecc71; }
-
-/* Existing overrides from themes/ folder */
-body[data-theme='midnight-vinyl'] header {
-  border-bottom: 1px solid #222;
-}
-
-body[data-theme='midnight-vinyl'] .card {
-  border: 1px solid #222;
-}
-
-body[data-theme='midnight-vinyl'] textarea, 
-body[data-theme='midnight-vinyl'] input, 
-body[data-theme='midnight-vinyl'] select {
-  background: #1a1a1c;
-  border-color: #333;
-}
-
-body[data-theme='midnight-vinyl'] .job-item.selected {
-  background: #232326;
-  border-color: var(--accent2);
-}
-
-body[data-theme='midnight-vinyl'] #log-view {
+/* Log view target */
+body[data-theme='midnight-vinyl'] .lt-log-view {
   background: #000;
   border-color: #222;
 }
 
-body[data-theme='midnight-vinyl'] footer {
-  border-top: 1px solid #222;
+/* Standard Inputs */
+body[data-theme='midnight-vinyl'] .lt-textarea, 
+body[data-theme='midnight-vinyl'] .lt-input, 
+body[data-theme='midnight-vinyl'] .lt-select {
+  background: #1a1a1c;
+  border-color: #333;
 }
+
+body[data-theme='midnight-vinyl'] .lt-job-item {
+  background: rgba(255,255,255,0.02);
+}
+
+body[data-theme='midnight-vinyl'] .lt-job-item.selected {
+  background: #232326;
+  border-color: var(--accent2);
+}
+

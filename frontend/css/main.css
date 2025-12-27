@@ -101,6 +101,8 @@ footer {
   margin-bottom: 0.5rem;
   color: var(--muted);
   font-weight: 700;
+  /* Standardize cursor for labels if they wrap inputs */
+  cursor: default;
 }
 
 /* Form Elements */
@@ -165,6 +167,16 @@ footer {
 .lt-btn-sm {
   font-size: 0.65rem;
   padding: 0.3rem 0.75rem;
+  font-size: 0.65rem;
+  padding: 0.3rem 0.75rem;
+}
+
+/* Standard Grid System for Lists */
+.lt-grid-container {
+  display: grid;
+  grid-template-rows: auto 1fr; /* Header + Content */
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Status & Indicators */
@@ -203,6 +215,57 @@ footer {
 .lt-indicator-dot-success {
   background: #2ecc71;
   box-shadow: 0 0 8px #2ecc71;
+}
+
+/* Helper for when an indicator needs to be inline but not pulsing */
+.lt-indicator-static {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  background: var(--muted);
+}
+
+/* Standardized Job Item */
+.lt-job-item {
+  /* Base styles are in component, but this allows themes to target it */
+}
+
+
+/* Scrollable Areas */
+.lt-scrollable {
+  overflow-y: auto;
+  padding-right: 0.5rem; /* Space for scrollbar */
+}
+
+.lt-scrollable::-webkit-scrollbar {
+  width: 6px;
+  background: rgba(0,0,0,0.05);
+}
+
+.lt-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+/* File Grid Elements */
+.lt-file-hero,
+.lt-file-grid {
+  /* Base styles */
+}
+
+.lt-file-grid-header {
+  /* Base styles */
+}
+
+.lt-terminal {}
+.lt-log-view {}
+
+/* One-off Utility for new job form to ensure it aligns nicely */
+.new-job-card {
+  display: flex;
+  flex-direction: column;
 }
 
 /* Utilities */

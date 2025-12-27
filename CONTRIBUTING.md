@@ -24,6 +24,16 @@ Benefits:
 1. User creates a job via the HTTP API.
 2. The `jobs.Manager` queues the job ID.
 3. A single background worker executes the configured CLI command for that job.
+## Frontend Development
+
+We follow a specific philosophy for frontend styling:
+
+1.  **Mini Framework**: We have a set of internal base classes (prefixed with `.lt-`) defined in `frontend/css/main.css`. Components should use these classes.
+2.  **Theming**: Themes (in `frontend/css/themes/`) customize the look by overriding CSS variables and targeting the `.lt-` classes.
+3.  **Components**: We use `goober` for component-level styles. Reusable patterns should be extracted.
+
+See `frontend/.goosehints` for the full style guide.
+
 4. Subprocess output is captured:
    - persisted into SQLite
    - streamed live to the browser
