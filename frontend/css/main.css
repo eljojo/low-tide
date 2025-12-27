@@ -101,8 +101,6 @@ footer {
   margin-bottom: 0.5rem;
   color: var(--muted);
   font-weight: 700;
-  /* Standardize cursor for labels if they wrap inputs */
-  cursor: default;
 }
 
 /* Form Elements */
@@ -165,8 +163,6 @@ footer {
 }
 
 .lt-btn-sm {
-  font-size: 0.65rem;
-  padding: 0.3rem 0.75rem;
   font-size: 0.65rem;
   padding: 0.3rem 0.75rem;
 }
