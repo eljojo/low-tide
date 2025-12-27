@@ -1,0 +1,17 @@
+/* THEME: The Archivist (Default) */
+:root, body[data-theme='archivist'] {
+  --bg: #fdfaf6;
+  --fg: #3a3a3a;
+  --accent: #d9534f;
+  --accent2: #0275d8;
+  --muted: #8e8e8e;
+  --card-bg: #ffffff;
+  --danger: #d9534f;
+  --font-main: 'Lora', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --border-radius: 4px;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  --header-bg: #ffffff;
+  --input-bg: rgba(0, 0, 0, 0.02);
+  --border-color: rgba(0, 0, 0, 0.08);
+}

@@ -11,7 +11,7 @@ const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
   return (
     <div className={`job-item ${selected ? 'selected' : ''}`} onClick={handleClick}>
       <div className="job-header">
-        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {job.title || job.url || job.original_url || `Job #${job.id}`}
         </div>
         <div className={`status-pill status-${job.status}`}>

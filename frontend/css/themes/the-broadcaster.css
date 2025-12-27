@@ -1,70 +1,114 @@
 /* THEME: The Broadcaster */
 body[data-theme='the-broadcaster'] {
-  --bg: #e0e0e0;
+  --bg: #dcdcdc;
   --fg: #000000;
-  --accent: #222222;
-  --accent2: #0055cc;
-  --muted: #666666;
+  --accent: #ff5500;
+  --accent2: #0033aa;
+  --muted: #555555;
   --card-bg: #ffffff;
-  --danger: #cc0000;
+  --danger: #aa0000;
   --font-main: 'Helvetica', 'Arial', sans-serif;
   --font-mono: 'Monaco', 'Courier New', monospace;
   --border-radius: 0px;
-  --shadow: 4px 4px 0px rgba(0,0,0,0.1);
+  --shadow: 6px 6px 0px rgba(0, 0, 0, 1);
+  --header-bg: #ffffff;
+  --input-bg: #eeeeee;
+  --border-color: #000000;
+}
+
+/* Broadcaster Theme Enhancements */
+body[data-theme='the-broadcaster'] .single-file-hero,
+body[data-theme='the-broadcaster'] .multi-file-grid {
+  border: 2px solid var(--fg) !important;
+  box-shadow: 4px 4px 0px var(--fg) !important;
+  border-radius: 0 !important;
+}
+
+body[data-theme='the-broadcaster'] .file-grid-header {
+  background: var(--fg) !important;
+  color: var(--card-bg) !important;
 }
 
 body[data-theme='the-broadcaster'] header {
-  border-bottom: 4px solid var(--fg);
-  padding: 2rem;
+  border-bottom: 6px solid var(--fg);
+  padding-top: 2.5rem;
+  padding-bottom: 2.5rem;
 }
 
 body[data-theme='the-broadcaster'] h1 {
   text-transform: uppercase;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  font-size: 2rem;
+  letter-spacing: 0.05em;
 }
 
 body[data-theme='the-broadcaster'] .card {
-  border: 2px solid var(--fg);
-  box-shadow: 8px 8px 0px rgba(0,0,0,1);
+  border: 3px solid var(--fg);
+  box-shadow: 10px 10px 0px var(--fg);
 }
 
 body[data-theme='the-broadcaster'] h2 {
   background: var(--fg);
   color: var(--card-bg);
-  padding: 0.4rem 1rem;
-  margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+  padding: 0.6rem 1rem;
+  margin: -2rem -2rem 2rem -2rem;
+  font-size: 0.9rem;
+}
+
+/* Explicitly target the Pane Title h2 to override the "Banner" style */
+body[data-theme='the-broadcaster'] .pane-title-group h2 {
+  background: transparent;
+  color: var(--fg);
+  margin: 0;
+  padding: 0;
+  font-size: 2.4rem;
+  text-transform: uppercase;
+  border-bottom: 4px solid var(--fg);
+  display: inline-block;
+  padding-bottom: 0.4rem;
+  line-height: 1;
 }
 
 body[data-theme='the-broadcaster'] button {
-  border: 2px solid var(--fg);
-  box-shadow: 4px 4px 0px rgba(0,0,0,1);
-  border-radius: 0;
-}
-
-body[data-theme='the-broadcaster'] button:active {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px rgba(0,0,0,1);
-}
-
-body[data-theme='the-broadcaster'] .job-item {
-  border: 1px solid var(--fg);
-  border-radius: 0;
-  background: transparent;
+  border: 3px solid var(--fg);
+  box-shadow: 4px 4px 0px var(--fg);
 }
 
 body[data-theme='the-broadcaster'] .job-item.selected {
   background: var(--fg);
   color: var(--card-bg);
+  border-color: var(--fg);
 }
 
-body[data-theme='the-broadcaster'] .job-item.selected .status-pill {
-  background: var(--card-bg);
-  color: var(--fg);
+body[data-theme='the-broadcaster'] .status-pill {
+  background: #fff !important;
+  color: #000 !important;
+  border: 2px solid #000 !important;
+  box-shadow: 2px 2px 0px #000;
+  font-weight: 900;
 }
+
+body[data-theme='the-broadcaster'] .status-running { border-color: #00ff00 !important; }
+body[data-theme='the-broadcaster'] .status-success { border-color: #00ff00 !important; }
+body[data-theme='the-broadcaster'] .status-failed  { border-color: #ff0000 !important; }
+body[data-theme='the-broadcaster'] .status-queued  { border-color: #888 !important; }
 
 body[data-theme='the-broadcaster'] #log-view {
-  background: #f8f8f8;
+  background: #ffffff;
   color: #000;
-  border: 2px solid var(--fg);
+  border: 3px solid var(--fg);
+}
+
+/* Theme-specific indicator overrides */
+body[data-theme='the-broadcaster'] #global-indicator,
+body[data-theme='the-broadcaster'] .indicator {
+  animation: none;
+  border-radius: 0;
+  background: #00ff00;
+  border: 2px solid #000;
+  box-shadow: none;
+}
+
+body[data-theme='the-broadcaster'] .blob {
+  display: none;
 }

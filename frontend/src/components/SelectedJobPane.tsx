@@ -21,10 +21,13 @@ export const SelectedJobPane = () => {
   };
 
   return (
-    <section className="card" style={{ gridColumn: '1 / -1', marginTop: '1.2rem' }}>
+    <section className="card" style={{ gridColumn: '1 / -1' }}>
       <div className="pane-header">
         <div className="pane-title-group">
-          <h2>{title}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            {job.status === 'running' && <div id="global-indicator"></div>}
+            <h2>{title}</h2>
+          </div>
           <div className="pane-metadata">
             Entry #{job.id} &bull; {new Date(job.created_at).toLocaleString()}
           </div>

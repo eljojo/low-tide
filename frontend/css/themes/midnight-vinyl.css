@@ -1,18 +1,33 @@
 /* THEME: Midnight Vinyl */
 body[data-theme='midnight-vinyl'] {
-  --bg: #0a0a0b;
-  --fg: #d1d1d1;
+  --bg: #0c0c0e;
+  --fg: #e2e2e2;
   --accent: #ff0055;
   --accent2: #00f2ff;
-  --muted: #666;
-  --card-bg: #141416;
+  --muted: #66666a;
+  --card-bg: #161618;
   --danger: #ff3b3b;
   --font-main: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
-  --border-radius: 8px;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --border-radius: 10px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --header-bg: #161618;
+  --input-bg: #1f1f22;
+  --border-color: #2a2a2e;
 }
 
+body[data-theme='midnight-vinyl'] button.secondary {
+  background: rgba(255,255,255,0.05);
+}
+
+body[data-theme='midnight-vinyl'] .job-item {
+  background: rgba(255,255,255,0.02);
+}
+
+body[data-theme='midnight-vinyl'] .status-queued { background: #222; color: #666; }
+body[data-theme='midnight-vinyl'] .status-success { background: rgba(39, 174, 96, 0.1); color: #2ecc71; }
+
+/* Existing overrides from themes/ folder */
 body[data-theme='midnight-vinyl'] header {
   border-bottom: 1px solid #222;
 }
@@ -26,10 +41,6 @@ body[data-theme='midnight-vinyl'] input,
 body[data-theme='midnight-vinyl'] select {
   background: #1a1a1c;
   border-color: #333;
-}
-
-body[data-theme='midnight-vinyl'] .job-item {
-  background: #1a1a1c;
 }
 
 body[data-theme='midnight-vinyl'] .job-item.selected {
