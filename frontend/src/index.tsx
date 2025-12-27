@@ -17,11 +17,9 @@ interface Job {
   created_at: string;
   archived: boolean;
   files?: FileInfo[];
-  has_logs: boolean;
 }
 
-interface AppConfig {
-  id: string;
+interface AppState {
   name: string;
 }
 
@@ -71,7 +69,7 @@ const useJobStore = create<AppState>((set) => ({
     const job = state.jobs[id];
     // Fetch logs if they haven't been loaded yet,
     // or if the job is running (meaning logs are constantly changing).
-    if (job?.has_logs && (!logBuffers[id] || job.status === 'running')) {
+    if (job && (!logBuffers[id] || job.status === 'running')) {
         // Need to trigger fetch
         setTimeout(() => fetchJobLogs(id), 0);
     }
@@ -404,7 +402,7 @@ const SelectedJobPane = () => {
         </div>
       </div>
 
-      {(job.has_logs || job.status === 'running') && (
+      {(job.status !== 'queued') && (
         <div style={{ marginTop: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--muted)' }}>Logs</h3>

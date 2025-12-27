@@ -131,9 +131,6 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			if buf := s.Mgr.GetJobLogBuffer(j.ID); len(buf) > 0 {
-				j.HasLogs = true
-			}
 			out = append(out, jobWithFiles{Job: j, HasFiles: fCount > 0, FileCount: fCount})
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -374,11 +371,6 @@ func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID
 		rel = append(rel, f)
 	}
 	j.Files = rel
-
-	// Mark if logs are available
-	if buf := s.Mgr.GetJobLogBuffer(jobID); len(buf) > 0 {
-		j.HasLogs = true
-	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(j)

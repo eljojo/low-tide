@@ -33,19 +33,12 @@ type Manager struct {
 	mu      sync.Mutex
 	current *runningJob
 
-	// In-memory log buffer for the past 10 jobs
-	recentLogs      map[int64]*terminal.Terminal
-	recentJobIDs    []int64
-	recentLogsMutex sync.Mutex
-
 	stateSubs      map[chan []byte]struct{}
 	stateSubsMutex sync.Mutex
 
 	jobChanges   map[int64]*jobChange
 	jobChangesMu sync.Mutex
 }
-
-const maxRecentLogs = 10
 
 type jobChange struct {
 	dirty    bool
@@ -68,10 +61,10 @@ type JobSnapshotEvent struct {
 }
 
 type JobLogEvent struct {
-	Type  string    `json:"type"`
-	JobID int64     `json:"job_id"`
+	Type  string         `json:"type"`
+	JobID int64          `json:"job_id"`
 	Lines map[int]string `json:"lines,omitempty"`
-	When  time.Time `json:"when"`
+	When  time.Time      `json:"when"`
 }
 
 func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
@@ -98,7 +91,6 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 		stateSubs:  make(map[chan []byte]struct{}),
 		jobChanges: make(map[int64]*jobChange),
 		watchRoot:  watchRoot,
-		recentLogs: make(map[int64]*terminal.Terminal),
 	}
 
 	go m.watchLoop()
@@ -405,7 +397,7 @@ func (m *Manager) runJob(jobID int64) {
 	appCfg := m.Cfg.GetApp(j.AppID)
 	if appCfg == nil {
 		log.Printf("worker: job %d failed, unknown app %s", jobID, j.AppID)
-		_ = store.MarkJobFailed(m.DB, jobID, time.Now(), "unknown app: "+j.AppID)
+		_ = store.MarkJobFailed(m.DB, jobID, time.Now(), "unknown app: "+j.AppID, "")
 		m.BroadcastJobSnapshot(jobID)
 		m.clearCurrent(jobID, ctx)
 		return
@@ -418,7 +410,7 @@ func (m *Manager) runJob(jobID int64) {
 		if err != nil {
 			success = false
 			failureMsg = err.Error()
-			_ = store.MarkJobFailed(m.DB, jobID, time.Now(), failureMsg)
+			_ = store.MarkJobFailed(m.DB, jobID, time.Now(), failureMsg, ctx.term.RenderHTML())
 		}
 	}
 
@@ -442,7 +434,7 @@ func (m *Manager) runJob(jobID int64) {
 			if !hasContent {
 				success = false
 				failureMsg = "no output files found (or all empty)"
-				_ = store.MarkJobFailed(m.DB, jobID, time.Now(), failureMsg)
+				_ = store.MarkJobFailed(m.DB, jobID, time.Now(), failureMsg, ctx.term.RenderHTML())
 			}
 		}
 	}
@@ -462,10 +454,11 @@ func (m *Manager) runJob(jobID int64) {
 	if success {
 		summaryLine := chars.NewLine + "--- Job finished at " + finished.Format(time.RFC3339) + ": Success ---" + chars.NewLine
 		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
-		_ = store.MarkJobSuccess(m.DB, jobID, finished)
+		_ = store.MarkJobSuccess(m.DB, jobID, finished, ctx.term.RenderHTML())
 	} else {
 		summaryLine := chars.NewLine + "--- Job finished at " + finished.Format(time.RFC3339) + ": Failed (" + failureMsg + ") ---" + chars.NewLine
 		m.appendAndBroadcastLog(ctx, []byte(summaryLine))
+		_ = store.MarkJobFailed(m.DB, jobID, finished, failureMsg, ctx.term.RenderHTML())
 	}
 
 	m.BroadcastJobSnapshot(jobID)
@@ -517,19 +510,6 @@ func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) erro
 }
 
 func (m *Manager) clearCurrent(jobID int64, ctx *runningJob) {
-	m.recentLogsMutex.Lock()
-	// Store in recent logs
-	m.recentLogs[jobID] = ctx.term
-	m.recentJobIDs = append(m.recentJobIDs, jobID)
-
-	// Trim to past 10 jobs
-	if len(m.recentJobIDs) > maxRecentLogs {
-		toRemove := m.recentJobIDs[0]
-		delete(m.recentLogs, toRemove)
-		m.recentJobIDs = m.recentJobIDs[1:]
-	}
-	m.recentLogsMutex.Unlock()
-
 	m.mu.Lock()
 	if m.current == ctx {
 		m.current = nil
@@ -680,29 +660,16 @@ func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 	}
 	j.Files = relFiles
 
-	// Check if we have logs in memory (either current or recent)
-	if _, ok := m.GetJobLogs(jobID); ok {
-		j.HasLogs = true
-	} else {
-		m.mu.Lock()
-		if m.current != nil && m.current.jobID == jobID {
-			j.HasLogs = true
-		}
-		m.mu.Unlock()
-	}
-
 	ev := JobSnapshotEvent{Type: "job_snapshot", Job: j, At: time.Now()}
 	m.BroadcastState(ev)
 }
 
 func (m *Manager) GetJobLogs(jobID int64) ([]byte, bool) {
-	m.recentLogsMutex.Lock()
-	defer m.recentLogsMutex.Unlock()
-	term, ok := m.recentLogs[jobID]
-	if !ok {
+	j, err := store.GetJob(m.DB, jobID)
+	if err != nil {
 		return nil, false
 	}
-	return []byte(term.RenderHTML()), true
+	return []byte(j.Logs), true
 }
 
 func (m *Manager) GetJobLogBuffer(jobID int64) []byte {
