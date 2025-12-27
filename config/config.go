@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 package config
 
 import (
@@ -9,12 +10,12 @@ import (
 
 // AppConfig represents a single download app definition.
 type AppConfig struct {
-	Name             string   `yaml:"name" json:"name"`
-	ID               string   `yaml:"id" json:"id"`
-	Command          string   `yaml:"command" json:"command"` // e.g. "yt-dlp %u"
-	Args             []string `yaml:"args" json:"args"`       // optional fixed args
-	Regex            string   `yaml:"regex" json:"regex"`     // optional regex to auto-match URLs
-	StripTrailingSlash bool   `yaml:"strip_trailing_slash" json:"strip_trailing_slash"`
+	Name               string   `yaml:"name" json:"name"`
+	ID                 string   `yaml:"id" json:"id"`
+	Command            string   `yaml:"command" json:"command"` // e.g. "yt-dlp %u"
+	Args               []string `yaml:"args" json:"args"`       // optional fixed args
+	Regex              string   `yaml:"regex" json:"regex"`     // optional regex to auto-match URLs
+	StripTrailingSlash bool     `yaml:"strip_trailing_slash" json:"strip_trailing_slash"`
 }
 
 func (c *Config) MatchAppForURL(u string) *AppConfig {

@@ -60,3 +60,6 @@ Instead of sending many small, imperative events (e.g., "job started", "file add
 # Run with default config
 LOWTIDE_CONFIG=config/config.yaml go run .
 ```
+
+## License
+AGPL-3.0-only
