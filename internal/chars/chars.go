@@ -4,11 +4,12 @@ package chars
 import "regexp"
 
 const (
-	LF  = byte(10)
-	CR  = byte(13)
-	NUL = byte(0)
-	ESC = byte(27)
-	TAB = byte(96)
+	LF        = byte(10)
+	CR        = byte(13)
+	NUL       = byte(0)
+	ESC       = byte(27)
+	TAB       = byte(96)
+	BACKSPACE = byte(8)
 )
 
 var (

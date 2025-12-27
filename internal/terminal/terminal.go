@@ -24,6 +24,11 @@ type Terminal struct {
 	cursorX      int
 	currentStyle []byte
 	dirty        map[int]bool
+	// pending holds an incomplete ANSI escape sequence that was split across
+	// reads/writes (common when streaming from a PTY). Without buffering, we'd
+	// drop the ESC byte and then render the remaining bytes literally (e.g.
+	// "[38;5;237m").
+	pending []byte
 }
 
 var reCSI = regexp.MustCompile(`^(\d*)(?:;(\d*))?([a-zA-Z])`)
@@ -46,23 +51,51 @@ func (t *Terminal) resetBuffer() {
 	t.cursorY = 0
 	t.cursorX = 0
 	t.currentStyle = chars.ANSI_Reset
+	t.pending = nil
 }
 
 func (t *Terminal) Write(data []byte) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	// If the previous write ended mid-escape-sequence, prepend it.
+	if len(t.pending) > 0 {
+		merged := make([]byte, 0, len(t.pending)+len(data))
+		merged = append(merged, t.pending...)
+		merged = append(merged, data...)
+		data = merged
+		t.pending = nil
+	}
+
 	i := 0
 	for i < len(data) {
 		b := data[i]
-		if b == chars.ESC && i+1 < len(data) && data[i+1] == '[' {
-			// Found CSI sequence
-			seq := chars.Re_ANSI.Find(data[i:])
-			if seq != nil {
-				t.handleCSI(seq)
-				i += len(seq)
-				continue
+		if b == chars.ESC {
+			// Buffer incomplete escape sequences split across reads.
+			if i+1 >= len(data) {
+				t.pending = append([]byte{}, data[i:]...)
+				return
 			}
+			if data[i+1] == '[' {
+				// Try to parse a complete CSI sequence in this buffer.
+				seq := chars.Re_ANSI.Find(data[i:])
+				if seq != nil {
+					t.handleCSI(seq)
+					i += len(seq)
+					continue
+				}
+				// No match: likely split across buffers. Keep everything from ESC.
+				// (We intentionally do not emit the '[' literal.)
+				t.pending = append([]byte{}, data[i:]...)
+				// Prevent unbounded growth if the input is garbage.
+				if len(t.pending) > 1024 {
+					t.pending = nil
+				}
+				return
+			}
+			// Not a CSI sequence we understand; drop ESC.
+			i++
+			continue
 		}
 
 		switch b {
@@ -71,7 +104,7 @@ func (t *Terminal) Write(data []byte) {
 			t.ensureCursorY()
 		case chars.CR:
 			t.cursorX = 0
-		case '\b':
+		case chars.BACKSPACE:
 			if t.cursorX > 0 {
 				t.cursorX--
 			}
