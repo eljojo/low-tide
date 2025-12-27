@@ -31,7 +31,7 @@ export const useJobStore = create<AppState>((set) => ({
     const job = state.jobs[id];
     // Fetch logs if they haven't been loaded yet,
     // or if the job is running (meaning logs are constantly changing).
-    if (job && (!logBuffers[id] || job.status === 'running')) {
+    if (!logBuffers[id] || (job && job.status === 'running')) {
         // Need to trigger fetch
         setTimeout(() => fetchJobLogs(id), 0);
     }
@@ -39,6 +39,9 @@ export const useJobStore = create<AppState>((set) => ({
     let consoleCollapsed = state.consoleCollapsed;
     if (job) {
       consoleCollapsed = job.status === 'success';
+    } else {
+      // If job is not in store yet (e.g. just queued), expand console to show progress
+      consoleCollapsed = false;
     }
     return { selectedJobId: id, consoleCollapsed, isPinned: pinned };
   }),

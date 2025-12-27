@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { useRef } from 'preact/hooks';
 import { useJobStore } from '../store';
 

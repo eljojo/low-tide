@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { Job } from '../types';
 import { useJobStore } from '../store';
 import { fetchJobDetails } from '../api';

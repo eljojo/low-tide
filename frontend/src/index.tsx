@@ -1,4 +1,4 @@
-import { render, h, Fragment } from 'preact';
+import { render, Fragment } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { connectWebSocket, loadInitialData } from './api';
 import { Header } from './components/Header';

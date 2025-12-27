@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { useJobStore } from '../store';
 import { humanSize } from '../utils';
 import { TerminalView } from './TerminalView';
@@ -53,11 +52,10 @@ export const SelectedJobPane = () => {
       )}
         
         {files.length === 0 ? (
-          (job.status != 'failed') && (
+          (job.status != 'failed' && job.status != 'running') && (
             <div className="manifest-placeholder">
-              <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.5rem' }}>∅</span>
               <div>
-                {job.status === 'running' ? 'Waiting for files...' : 'No files available'}
+                {job.status === 'cleaned' ? 'Files have been cleaned' : 'No files available'}
               </div>
             </div>
           )

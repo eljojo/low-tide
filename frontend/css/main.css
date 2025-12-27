@@ -306,7 +306,7 @@ body[data-theme='midnight-vinyl'] .status-success { background: rgba(39, 174, 96
 
 /* Manifest / File System */
 .manifest-placeholder {
-  padding: 3rem;
+  padding: 1rem;
   text-align: center;
   background: var(--input-bg);
   border-radius: var(--border-radius);

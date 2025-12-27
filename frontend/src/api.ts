@@ -39,7 +39,7 @@ export async function fetchJobLogs(id: number) {
   } catch (e) { console.error(e); }
 }
 
-export let socket: WebSocket | null = null;
+let socket: WebSocket | null = null;
 
 export function connectWebSocket() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';

@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { useJobStore } from '../store';
 
 export const Header = () => {
