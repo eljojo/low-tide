@@ -112,7 +112,7 @@ const FileTable = ({ files, jobId, isCleaned }: { files: FileInfo[]; jobId: numb
     {!isCleaned && (
       <TableFooter>
         <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${jobId}/zip`}>
-          Download all as ZIP
+          Download All
         </button>
       </TableFooter>
     )}
