@@ -297,18 +297,3 @@ footer {
 .term-bg45 { background-color: #ff7f1f; }
 .term-bg46 { background-color: #00c0a3; }
 .term-bg47 { background-color: #fef4e3; }
-
-.xterm-viewport, .xterm-screen {
-  background-color: transparent !important;
-}
-.xterm {
-  padding: 0;
-}
-.xterm-viewport::-webkit-scrollbar {
-  display: none; /* Hide internal xterm scrollbar in favor of our #log-view one */
-}
-/* Ensure the terminal doesn't clip if the container is small */
-.terminal-container { display: block; width: 100%; height: 100%; }
-.terminal-container .xterm-rows { line-height: normal !important; }
-
-.xterm-helpers { visibility: hidden; position: absolute; }

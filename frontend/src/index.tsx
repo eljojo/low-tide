@@ -69,7 +69,9 @@ const useJobStore = create<AppState>((set) => ({
 
   selectJob: (id) => set((state) => {
     const job = state.jobs[id];
-    if (job?.has_logs && !logBuffers[id]) {
+    // Fetch logs if they haven't been loaded yet,
+    // or if the job is running (meaning logs are constantly changing).
+    if (job?.has_logs && (!logBuffers[id] || job.status === 'running')) {
         // Need to trigger fetch
         setTimeout(() => fetchJobLogs(id), 0);
     }
@@ -157,11 +159,14 @@ function connectWebSocket() {
           }
         } else if (job.status === 'running') {
           useJobStore.getState().selectJob(job.id);
-          fetchJobDetails(job.id);
         }
       } else if (msg.type === 'job_log') {
-        logBuffers[msg.job_id] = msg.html;
-        window.dispatchEvent(new CustomEvent('job-log-stream', { detail: { jobId: msg.job_id, html: msg.html } }));
+        if (msg.lines) {
+           // If this is the currently selected job, deltas are patched into the DOM by TerminalView.
+           // If it's a background job, we'll re-fetch the full log when it's selected again.
+         }
+        // Dispatch event with delta lines for UI patching
+        window.dispatchEvent(new CustomEvent('job-log-stream', { detail: msg }));
       } else if (msg.type === 'jobs_archived') {
         loadInitialData();
       }
@@ -298,13 +303,26 @@ const TerminalView = ({ jobId }: { jobId: number }) => {
 
   useEffect(() => {
     if (!termRef.current) return;
-    termRef.current.innerHTML = logBuffers[jobId] || "";
+    const existing = logBuffers[jobId] || "";
+    if (existing) {
+       termRef.current.innerHTML = existing;
+    }
   }, [jobId]);
 
   useEffect(() => {
     const handleStream = (e: any) => {
-      if (e.detail.jobId === jobId && termRef.current) {
-        termRef.current.innerHTML = e.detail.html;
+      if (e.detail.job_id === jobId && termRef.current) {
+        const msg = e.detail;
+        if (msg.lines) {
+          // Line delta update
+          for (const [idxStr, htmlLine] of Object.entries(msg.lines)) {
+            const idx = parseInt(idxStr);
+            let lineDiv = termRef.current.querySelector(`[data-line="${idx}"]`);
+            if (lineDiv) {
+              lineDiv.outerHTML = htmlLine as string;
+            }
+          }
+        }
       }
     };
     const handleLoaded = (e: any) => {

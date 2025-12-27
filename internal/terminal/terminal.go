@@ -2,7 +2,8 @@ package terminal
 
 import (
 	"bytes"
-	"github.com/buildkite/terminal-to-html/v3"
+	"fmt"
+	ansi "github.com/buildkite/terminal-to-html/v3"
 	"low-tide/internal/chars"
 	"regexp"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 
 type Cell struct {
 	Char  byte
-	Style []byte // The ANSI SGR sequence active when this char was written
+	Style []byte
 }
 
 type Terminal struct {
@@ -21,6 +22,7 @@ type Terminal struct {
 	cursorY      int
 	cursorX      int
 	currentStyle []byte
+	dirty        map[int]bool
 }
 
 var reCSI = regexp.MustCompile(`^(\d*)(?:;(\d*))?([a-zA-Z])`)
@@ -28,6 +30,7 @@ var reCSI = regexp.MustCompile(`^(\d*)(?:;(\d*))?([a-zA-Z])`)
 func New(maxLines int) *Terminal {
 	t := &Terminal{
 		maxLines: maxLines,
+		dirty:    make(map[int]bool),
 	}
 	t.resetBuffer()
 	return t
@@ -37,6 +40,7 @@ func (t *Terminal) resetBuffer() {
 	t.lines = make([][]Cell, t.maxLines)
 	for i := range t.lines {
 		t.lines[i] = []Cell{}
+		t.dirty[i] = true
 	}
 	t.cursorY = 0
 	t.cursorX = 0
@@ -50,7 +54,6 @@ func (t *Terminal) Write(data []byte) {
 	i := 0
 	for i < len(data) {
 		b := data[i]
-
 		if b == chars.ESC && i+1 < len(data) && data[i+1] == '[' {
 			// Found CSI sequence
 			seq := chars.Re_ANSI.Find(data[i:])
@@ -71,7 +74,7 @@ func (t *Terminal) Write(data []byte) {
 			if t.cursorX > 0 {
 				t.cursorX--
 			}
-		case '	':
+		case chars.TAB:
 			// Tabs: move to next multiple of 8
 			t.cursorX = (t.cursorX/8 + 1) * 8
 		default:
@@ -95,25 +98,42 @@ func (t *Terminal) handleCSI(fullSeq []byte) {
 	cmd := match[3]
 
 	switch cmd {
-	case "m": // SGR - Style
-		// We capture the entire sequence to apply to future characters
+	case "m": // We capture the entire sequence to apply to future characters
 		t.currentStyle = append([]byte{}, fullSeq...)
 	case "A": // Up
-		if p1 == 0 { p1 = 1 }
+		if p1 == 0 {
+			p1 = 1
+		}
 		t.cursorY -= p1
 	case "B": // Down
-		if p1 == 0 { p1 = 1 }
+		if p1 == 0 {
+			p1 = 1
+		}
 		t.cursorY += p1
 	case "C": // Right
-		if p1 == 0 { p1 = 1 }
+		if p1 == 0 {
+			p1 = 1
+		}
 		t.cursorX += p1
 	case "D": // Left
-		if p1 == 0 { p1 = 1 }
+		if p1 == 0 {
+			p1 = 1
+		}
 		t.cursorX -= p1
-		if t.cursorX < 0 { t.cursorX = 0 }
+		if t.cursorX < 0 {
+			t.cursorX = 0
+		}
 	case "H", "f": // Home / Position
-		if p1 > 0 { t.cursorY = p1 - 1 } else { t.cursorY = 0 }
-		if p2 > 0 { t.cursorX = p2 - 1 } else { t.cursorX = 0 }
+		if p1 > 0 {
+			t.cursorY = p1 - 1
+		} else {
+			t.cursorY = 0
+		}
+		if p2 > 0 {
+			t.cursorX = p2 - 1
+		} else {
+			t.cursorX = 0
+		}
 	case "J": // Clear Screen
 		if p1 == 2 {
 			t.resetBuffer()
@@ -123,11 +143,13 @@ func (t *Terminal) handleCSI(fullSeq []byte) {
 			if t.cursorY >= 0 && t.cursorY < len(t.lines) {
 				if t.cursorX < len(t.lines[t.cursorY]) {
 					t.lines[t.cursorY] = t.lines[t.cursorY][:t.cursorX]
+					t.dirty[t.cursorY] = true
 				}
 			}
 		} else if p1 == 2 { // Clear entire line
 			if t.cursorY >= 0 && t.cursorY < len(t.lines) {
 				t.lines[t.cursorY] = []Cell{}
+				t.dirty[t.cursorY] = true
 			}
 		}
 	}
@@ -139,12 +161,17 @@ func (t *Terminal) ensureCursorY() {
 		t.cursorY = 0
 	}
 	if t.cursorY >= t.maxLines {
+		// Scroll
 		diff := t.cursorY - (t.maxLines - 1)
 		copy(t.lines, t.lines[diff:])
 		for j := t.maxLines - diff; j < t.maxLines; j++ {
 			t.lines[j] = []Cell{}
 		}
 		t.cursorY = t.maxLines - 1
+		// When we scroll, every line effectively changes its content/index
+		for j := 0; j < t.maxLines; j++ {
+			t.dirty[j] = true
+		}
 	}
 }
 
@@ -166,7 +193,41 @@ func (t *Terminal) writeCell(b byte) {
 		line = append(line, newCell)
 	}
 	t.lines[t.cursorY] = line
+	t.dirty[t.cursorY] = true
 	t.cursorX++
+}
+
+func (t *Terminal) GetDeltaHTML() map[int]string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	delta := make(map[int]string)
+	for idx, isDirty := range t.dirty {
+		if isDirty {
+			delta[idx] = t.renderLine(idx)
+			delete(t.dirty, idx)
+		}
+	}
+	return delta
+}
+
+func (t *Terminal) renderLine(idx int) string {
+	var buf bytes.Buffer
+	var activeStyle []byte
+	for _, cell := range t.lines[idx] {
+		if !bytes.Equal(cell.Style, activeStyle) {
+			buf.Write(cell.Style)
+			activeStyle = cell.Style
+		}
+		if cell.Char == 0 {
+			buf.WriteByte(' ')
+		} else {
+			buf.WriteByte(cell.Char)
+		}
+	}
+	// Always append reset to ensure line doesn't bleed into others in terminal-to-html
+	buf.Write(chars.ANSI_Reset)
+	return fmt.Sprintf(`<div data-line="%d">%s</div>`, idx, ansi.Render(buf.Bytes()))
 }
 
 func (t *Terminal) RenderHTML() string {
@@ -174,45 +235,10 @@ func (t *Terminal) RenderHTML() string {
 	defer t.mu.Unlock()
 
 	var buf bytes.Buffer
-	first := -1
-	last := -1
-
-	for i, line := range t.lines {
-		hasContent := false
-		for _, cell := range line {
-			if cell.Char != ' ' && cell.Char != 0 {
-				hasContent = true
-				break
-			}
-		}
-		if hasContent {
-			if first == -1 { first = i }
-			last = i
-		}
+	for i := 0; i < t.maxLines; i++ {
+		buf.WriteString(t.renderLine(i))
 	}
-
-	if first == -1 {
-		return ""
-	}
-
-	if t.cursorY > last {
-		last = t.cursorY
-	}
-
-	var activeStyle []byte
-	for i := first; i <= last; i++ {
-		for _, cell := range t.lines[i] {
-			// Only write style if it changed to keep HTML payload smaller
-			if !bytes.Equal(cell.Style, activeStyle) {
-				buf.Write(cell.Style)
-				activeStyle = cell.Style
-			}
-			buf.WriteByte(cell.Char)
-		}
-		buf.WriteByte(chars.LF)
-	}
-	
-	return string(terminal.Render(buf.Bytes()))
+	return buf.String()
 }
 
 func (t *Terminal) Clear() {

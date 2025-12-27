@@ -70,7 +70,7 @@ type JobSnapshotEvent struct {
 type JobLogEvent struct {
 	Type  string    `json:"type"`
 	JobID int64     `json:"job_id"`
-	HTML  string    `json:"html"`
+	Lines map[int]string `json:"lines,omitempty"`
 	When  time.Time `json:"when"`
 }
 
@@ -105,6 +105,7 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 	log.Printf("job manager started; watching %s", watchRoot)
 	go m.worker()
 	go m.filesPublisher()
+	go m.logPublisher()
 	return m, nil
 }
 
@@ -144,6 +145,21 @@ func (m *Manager) filesPublisher() {
 		for _, it := range items {
 			m.BroadcastJobSnapshot(it.jobID)
 			m.markClean(it.jobID, it.seq)
+		}
+	}
+}
+
+func (m *Manager) logPublisher() {
+	t := time.NewTicker(50 * time.Millisecond)
+	defer t.Stop()
+	for range t.C {
+		m.mu.Lock()
+		rj := m.current
+		m.mu.Unlock()
+		if rj != nil {
+			if delta := rj.term.GetDeltaHTML(); len(delta) > 0 {
+				m.broadcastLogDelta(rj.jobID, delta)
+			}
 		}
 	}
 }
@@ -457,8 +473,7 @@ func (m *Manager) runJob(jobID int64) {
 }
 
 func (m *Manager) appendAndBroadcastLog(rj *runningJob, data []byte) {
-	rj.term.Write(data)
-	m.broadcastLogRaw(rj.jobID, []byte(rj.term.RenderHTML()))
+	rj.term.Write(data) // Ticker will pick up the changes
 }
 
 func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) error {
@@ -596,8 +611,13 @@ func (m *Manager) streamRaw(ctx context.Context, jobID int64, r io.Reader, rj *r
 	}
 }
 
-func (m *Manager) broadcastLogRaw(jobID int64, html []byte) {
-	ev := JobLogEvent{Type: "job_log", JobID: jobID, HTML: string(html), When: time.Now()}
+func (m *Manager) broadcastLogDelta(jobID int64, lines map[int]string) {
+	ev := JobLogEvent{
+		Type:  "job_log",
+		JobID: jobID,
+		Lines: lines,
+		When:  time.Now(),
+	}
 	m.BroadcastState(ev)
 }
 

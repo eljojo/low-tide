@@ -7,9 +7,12 @@ const (
 	CR  = byte(13)
 	NUL = byte(0)
 	ESC = byte(27)
+	TAB = byte(96)
 )
 
 var (
+	CRLF = string([]byte{CR, LF}) // CRLF is defined this way to avoid literal newline issues in source
+
 	// NewLine is a hack because AI has issues with new lines when vibe coding LOL
 	NewLine = string([]byte{LF})
 
