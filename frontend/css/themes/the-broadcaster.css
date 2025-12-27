@@ -61,14 +61,9 @@ body[data-theme='the-broadcaster'] h2 {
 
 /* Explicitly target the Pane Title h2 to override the "Banner" style */
 body[data-theme='the-broadcaster'] .pane-title-group h2 {
-  background: transparent;
-  color: var(--fg);
-  margin: 0;
-  padding: 0;
-  font-size: 2.4rem;
+  font-size: 1.5rem;
   text-transform: uppercase;
   border-bottom: 4px solid var(--fg);
-  display: inline-block;
   padding-bottom: 0.4rem;
   line-height: 1;
 }
@@ -106,8 +101,7 @@ body[data-theme='the-broadcaster'] .lt-log-view {
 /* Theme-specific indicator overrides */
 body[data-theme='the-broadcaster'] #global-indicator,
 body[data-theme='the-broadcaster'] .lt-indicator-dot,
-body[data-theme='the-broadcaster'] .lt-indicator-static,
-body[data-theme='the-broadcaster'] .indicator {
+body[data-theme='the-broadcaster'] .lt-indicator-static {
   animation: none;
   width: 12px;
   height: 12px;

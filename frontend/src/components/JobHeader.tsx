@@ -50,7 +50,7 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
 
   return (
     <PaneHeader>
-      <TitleGroup>
+      <TitleGroup className="pane-title-group">
         <MainTitleRow>
           {job.status === 'running' && <span className="lt-indicator-dot" style={{ width: '12px', height: '12px' }}></span>}
           <Title>{title}</Title>
