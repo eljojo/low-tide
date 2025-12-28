@@ -34,6 +34,15 @@ func (c *Config) MatchAppForURL(u string) *AppConfig {
 	return nil
 }
 
+func (c *Config) GetApp(id string) *AppConfig {
+	for i, a := range c.Apps {
+		if a.ID == id {
+			return &c.Apps[i]
+		}
+	}
+	return nil
+}
+
 // Config is the top-level configuration structure.
 type Config struct {
 	ListenAddr   string      `yaml:"listen_addr" json:"listen_addr"`
