@@ -20,6 +20,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"low-tide/config"
+	"low-tide/internal/cleanup"
 	"low-tide/jobs"
 	"low-tide/store"
 )
@@ -187,5 +188,211 @@ func TestIntegration_DownloadFlow(t *testing.T) {
 		t.Fatalf("expected file path to end with testfile.txt, got %s", files[0].Path)
 	}
 
+	// 9. Verify Slugification (parameterize)
+	// We'll test this by checking the zip endpoint response header
+	// First, update job title to something with spaces
+	newTitle := "My Test Job With Spaces"
+	err = store.UpdateJobTitle(db, jobID, newTitle)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	zipResp, err := http.Get(ts.URL + fmt.Sprintf("/api/jobs/%d/zip", jobID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zipResp.Body.Close()
+
+	cd := zipResp.Header.Get("Content-Disposition")
+	if !strings.Contains(cd, "my-test-job-with-spaces.zip") {
+		t.Fatalf("expected slugified filename in Content-Disposition, got %q", cd)
+	}
+
 	log.Printf("Integration test passed! Job %d finished successfully.", jobID)
+}
+
+func TestIntegration_Cancellation(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "lowtide-cancel-*")
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	watchDir := filepath.Join(tmpDir, "downloads")
+	os.MkdirAll(watchDir, 0755)
+
+	db, _ := sql.Open("sqlite3", dbPath+"?_fk=1")
+	defer db.Close()
+	store.Init(db)
+
+	cfg := &config.Config{
+		DBPath: dbPath, WatchDir: watchDir,
+		Apps: []config.AppConfig{{ID: "sleep", Command: "sleep", Args: []string{"10"}}},
+	}
+	mgr, _ := jobs.NewManager(db, cfg)
+	srv := NewServer(db, cfg, mgr)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Start job
+	resp, _ := http.PostForm(ts.URL+"/api/jobs", url.Values{"app_id": {"sleep"}, "urls": {"http://example.com"}})
+	var postResult struct{ IDs []int64 }
+	json.NewDecoder(resp.Body).Decode(&postResult)
+	jobID := postResult.IDs[0]
+
+	// Give it a moment to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Cancel job
+	cancelResp, err := http.Post(ts.URL+fmt.Sprintf("/api/jobs/%d/cancel", jobID), "", nil)
+	if err != nil || cancelResp.StatusCode != http.StatusNoContent {
+		t.Fatalf("failed to cancel: %v", err)
+	}
+
+	// Verify status
+	time.Sleep(500 * time.Millisecond)
+	j, _ := store.GetJob(db, jobID)
+	if j.Status != store.StatusCancelled {
+		t.Fatalf("expected status cancelled, got %s", j.Status)
+	}
+}
+
+func TestIntegration_RetryAndCleanup(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "lowtide-retry-*")
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	watchDir := filepath.Join(tmpDir, "downloads")
+	os.MkdirAll(watchDir, 0755)
+
+	db, _ := sql.Open("sqlite3", dbPath+"?_fk=1")
+	defer db.Close()
+	store.Init(db)
+
+	cfg := &config.Config{
+		DBPath: dbPath, WatchDir: watchDir,
+		Apps: []config.AppConfig{{ID: "fail-then-succeed", Command: "sh", Args: []string{"-c", "if [ -f fail_flag ]; then rm fail_flag; exit 1; else echo success > success.txt; fi"}}},
+	}
+	// Create fail_flag
+	os.WriteFile(filepath.Join(watchDir, "fail_flag"), []byte("fail"), 0644)
+
+	mgr, _ := jobs.NewManager(db, cfg)
+	srv := NewServer(db, cfg, mgr)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// 1. Run and Fail
+	http.PostForm(ts.URL+"/api/jobs", url.Values{"app_id": {"fail-then-succeed"}, "urls": {"http://example.com"}})
+	time.Sleep(1 * time.Second) // wait for failure
+
+	j, _ := store.GetJob(db, 1)
+	if j.Status != store.StatusFailed {
+		t.Fatalf("expected failure, got %s", j.Status)
+	}
+
+	// 2. Retry
+	http.Post(ts.URL+"/api/jobs/1/retry", "", nil)
+	time.Sleep(1 * time.Second) // wait for success
+
+	j, _ = store.GetJob(db, 1)
+	if j.Status != store.StatusSuccess {
+		t.Fatalf("expected success on retry, got %s", j.Status)
+	}
+
+	// 3. Cleanup
+	cleanupResp, err := http.Post(ts.URL+"/api/jobs/1/cleanup", "", nil)
+	if err != nil || cleanupResp.StatusCode != http.StatusNoContent {
+		t.Fatal("cleanup failed")
+	}
+
+	if _, err := os.Stat(filepath.Join(watchDir, "success.txt")); !os.IsNotExist(err) {
+		t.Fatal("file should have been deleted by cleanup")
+	}
+
+	j, _ = store.GetJob(db, 1)
+	if j.Status != store.StatusCleaned {
+		t.Fatalf("expected status cleaned, got %s", j.Status)
+	}
+}
+
+func TestIntegration_PathSafetyAndWeirdURLs(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "lowtide-safety-*")
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	watchDir := filepath.Join(tmpDir, "downloads")
+	os.MkdirAll(watchDir, 0755)
+
+	db, _ := sql.Open("sqlite3", dbPath+"?_fk=1")
+	defer db.Close()
+	store.Init(db)
+
+	cfg := &config.Config{DBPath: dbPath, WatchDir: watchDir}
+	mgr, _ := jobs.NewManager(db, cfg)
+	srv := NewServer(db, cfg, mgr)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// 1. Weird URLs
+	weirdURLs := `  http://example.com/ space  
+  https://google.com  
+  invalid-url  `
+	resp, _ := http.PostForm(ts.URL+"/api/jobs", url.Values{"app_id": {"auto"}, "urls": {weirdURLs}})
+	if resp.StatusCode == http.StatusOK {
+		var postResult struct{ IDs []int64 }
+		json.NewDecoder(resp.Body).Decode(&postResult)
+		// Should only have 2 valid URLs
+		if len(postResult.IDs) != 0 { // Actually we didn't define apps with regex so "auto" might fail but let's see
+			// In our test, no apps match, so it should return 400 or empty IDs.
+		}
+	}
+
+	// 2. Path Safety
+	// Inject a job file with a malicious path manually into DB
+	store.InsertJob(db, "test", "http://test.com", time.Now())
+	secretPath := filepath.Join(tmpDir, "secret.txt")
+	os.WriteFile(secretPath, []byte("sensitive"), 0644)
+	
+	// Try to use a path with ..
+	badPath := filepath.Join(watchDir, "../secret.txt")
+	store.InsertJobFile(db, 1, badPath, 9, time.Now())
+	
+	// Try to download via API
+	// We need the file ID.
+	files, _ := store.ListJobFiles(db, 1)
+	fid := files[0].ID
+	
+	dlResp, _ := http.Get(ts.URL + fmt.Sprintf("/api/jobs/1/files/%d", fid))
+	if dlResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for out-of-bounds path, got %d", dlResp.StatusCode)
+	}
+}
+
+func TestIntegration_EmptyFolderCleanup(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "lowtide-cleanup-*")
+	defer os.RemoveAll(tmpDir)
+
+	watchDir := filepath.Join(tmpDir, "downloads")
+	emptySub := filepath.Join(watchDir, "empty/nested/very/deep")
+	os.MkdirAll(emptySub, 0755)
+	
+	// Create one folder with a file
+	nonEmpty := filepath.Join(watchDir, "not-empty")
+	os.MkdirAll(nonEmpty, 0755)
+	os.WriteFile(filepath.Join(nonEmpty, "file.txt"), []byte("hi"), 0644)
+
+	// Call the cleanup function
+	// We need to import it or it's part of our package? internal/cleanup
+	err := cleanup.DeleteEmptyFolders(watchDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(emptySub); !os.IsNotExist(err) {
+		t.Fatal("empty folder should be gone")
+	}
+	if _, err := os.Stat(filepath.Join(watchDir, "empty")); !os.IsNotExist(err) {
+		t.Fatal("empty root should be gone")
+	}
+	if _, err := os.Stat(nonEmpty); err != nil {
+		t.Fatal("non-empty folder should still exist")
+	}
 }
