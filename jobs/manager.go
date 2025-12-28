@@ -3,6 +3,7 @@ package jobs
 
 import (
 	"context"
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -733,6 +734,29 @@ func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 		relFiles = append(relFiles, f)
 	}
 	j.Files = relFiles
+
+	// Marshal just the job data for comparison
+	jobData, err := json.Marshal(j)
+	if err != nil {
+		return
+	}
+
+	m.jobChangesMu.Lock()
+	ch := m.jobChanges[jobID]
+	if ch == nil {
+		ch = &jobChange{}
+		m.jobChanges[jobID] = ch
+	}
+
+	// Compare with the last sent job data
+	if bytes.Equal(ch.lastSent, jobData) {
+		m.jobChangesMu.Unlock()
+		return // Data is the same, no need to broadcast
+	}
+
+	// Data has changed, update our record of what was sent
+	ch.lastSent = jobData
+	m.jobChangesMu.Unlock()
 
 	ev := JobSnapshotEvent{Type: "job_snapshot", Job: j, At: time.Now()}
 	m.BroadcastState(ev)
