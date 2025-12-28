@@ -85,7 +85,7 @@ func main() {
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
 	mux.HandleFunc("/ws/state", srv.handleStateWS)
 
-	log.Printf("Low Tide listening on %s", cfg.ListenAddr)
+	log.Printf("🌊 Low Tide listening on %s", cfg.ListenAddr)
 	log.Fatal(http.ListenAndServe(cfg.ListenAddr, loggingMiddleware(mux)))
 }
 
@@ -95,6 +95,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// will be used to populate app list in JS
 	type AppInfo struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
@@ -103,7 +104,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	for _, app := range s.Cfg.Apps {
 		apps = append(apps, AppInfo{ID: app.ID, Name: app.Name})
 	}
-
 	appsJSON, _ := json.Marshal(apps)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -186,7 +186,6 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			}
 			ids = append(ids, jid)
 			s.Mgr.Queue <- jid
-			// broadcast queued job per-job
 			s.Mgr.BroadcastJobSnapshot(jid)
 			go s.Mgr.FetchAndSaveTitle(jid, u)
 		}
@@ -218,7 +217,7 @@ func (s *Server) handleClearJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
-	// /api/jobs/{id}/action or /api/jobs/{id}/files/{fileid}
+	// /api/jobs/{id}/{action} or /api/jobs/{id}/files/{fileid}
 	pathSuffix := strings.TrimPrefix(r.URL.Path, "/api/jobs/")
 	parts := strings.Split(pathSuffix, "/")
 
@@ -231,7 +230,7 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if r.Method == http.MethodGet {
-			s.handleJobSnapshot(w, r, id)
+			s.handleGetJobSnapshot(w, r, id)
 			return
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -282,8 +281,8 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 		}
 		s.handleJobLogs(w, r, id)
 	case "files":
-		// DEPRECATED: /api/jobs/{id}/files is now part of the snapshot.
-		// Only support DELETE (cleaning up) or specific file downloads.
+		// If URL is /api/jobs/{id}/files -> manage files
+		// e.g. DELETE to remove all files for job
 		if len(parts) == 2 {
 			if r.Method == http.MethodDelete {
 				s.handleDeleteFiles(w, r, id)
@@ -316,27 +315,22 @@ func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// broadcast state change
 		s.Mgr.BroadcastJobSnapshot(id)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	case "cleanup":
-		// Cleanup = archive + delete files + status=cleaned
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		// 1. Set status to cleaned and archived in DB first
 		if err := store.MarkJobCleaned(s.DB, id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// 2. Remove files from disk (watcher will now ignore these)
 		if err := s.deleteJobArtifacts(id); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// broadcast state change
 		s.Mgr.BroadcastJobSnapshot(id)
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -362,7 +356,6 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 	}
 
 	safeTitle := parameterize(j.Title, fmt.Sprintf("job-%d", jobID))
-
 	setDownloadHeaders(w, safeTitle+".zip")
 
 	zw := newZipWriter(w, s.Cfg.WatchDir)
@@ -375,7 +368,7 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 	}
 }
 
-func (s *Server) handleJobSnapshot(w http.ResponseWriter, r *http.Request, jobID int64) {
+func (s *Server) handleGetJobSnapshot(w http.ResponseWriter, r *http.Request, jobID int64) {
 	j, err := store.GetJob(s.DB, jobID)
 	if err != nil {
 		http.Error(w, "job not found", 404)
@@ -413,9 +406,7 @@ func (s *Server) handleJobLogs(w http.ResponseWriter, r *http.Request, jobID int
 	_, _ = w.Write(logs)
 }
 
-// Download a single file
 func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, jobID int64, fid int64) {
-	// Try file
 	if f, err := store.GetJobFileByID(s.DB, fid); err == nil {
 		if f.JobID != jobID {
 			http.Error(w, "file not part of job", 404)
@@ -427,7 +418,6 @@ func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, 
 			http.Error(w, "invalid path", 400)
 			return
 		}
-		// Force download with proper headers
 		setDownloadHeaders(w, f.Path)
 		http.ServeFile(w, r, f.Path)
 		return

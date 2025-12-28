@@ -89,8 +89,6 @@ See `frontend/.goosehints` for the full style guide.
 Feature ideas that fit the project’s “small and predictable” scope:
 
 - Authentication (simple password / OAuth via reverse proxy headers/JWT)
-- Safer URL validation and stricter command argument handling
 - Per-app environment variables / working directory configuration
-- Better artifact naming for ZIP downloads (derive from job title/app)
 - Optional concurrency limits (still bounded) for advanced users
 - Dockerfile / container-friendly defaults

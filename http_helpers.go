@@ -40,9 +40,8 @@ func setDownloadHeaders(w http.ResponseWriter, filename string) {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		log.Printf("%s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s done in %s", r.Method, r.URL.Path, time.Since(start))
+		log.Printf("%s %s done in %s, served to %s", r.Method, r.URL.Path, time.Since(start), r.RemoteAddr)
 	})
 }
 
@@ -105,7 +104,6 @@ func parameterize(s string, fallback string) string {
 	}
 	return res
 }
-
 
 // zip helpers
 
