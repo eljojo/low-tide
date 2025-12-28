@@ -288,10 +288,12 @@ func (s *Server) handleZip(w http.ResponseWriter, r *http.Request, jobID int64) 
 		return
 	}
 
+	jobDir := filepath.Join(s.Cfg.DownloadsDir, fmt.Sprintf("%d", jobID))
+
 	safeTitle := parameterize(j.Title, fmt.Sprintf("job-%d", jobID))
 	setDownloadHeaders(w, safeTitle+".zip")
 
-	zw := newZipWriter(w, s.Cfg.WatchDir)
+	zw := newZipWriter(w, jobDir)
 	defer zw.Close()
 
 	for _, f := range files {
@@ -314,9 +316,11 @@ func (s *Server) handleGetJobSnapshot(w http.ResponseWriter, r *http.Request, jo
 		return
 	}
 
+	jobDir := filepath.Join(s.Cfg.DownloadsDir, fmt.Sprintf("%d", jobID))
+
 	rel := make([]store.JobFile, 0, len(files))
 	for _, f := range files {
-		f.Path = toRelPath(s.Cfg.WatchDir, f.Path)
+		f.Path = toRelPath(jobDir, f.Path)
 		if f.Path == "" {
 			continue
 		}
@@ -345,8 +349,16 @@ func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, 
 			http.Error(w, "file not part of job", 404)
 			return
 		}
-		// Security: ensure path is under watch dir
-		rel, err := filepath.Rel(s.Cfg.WatchDir, f.Path)
+
+		jobDir := filepath.Join(s.Cfg.DownloadsDir, fmt.Sprintf("%d", jobID))
+		absJobDir, err := filepath.Abs(jobDir)
+		if err != nil {
+			http.Error(w, "internal error", 500)
+			return
+		}
+
+		// Security: ensure path is under the job's downloads dir
+		rel, err := filepath.Rel(absJobDir, f.Path)
 		if err != nil || strings.HasPrefix(rel, "..") {
 			http.Error(w, "invalid path", 400)
 			return
@@ -359,26 +371,24 @@ func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Server) deleteJobArtifacts(jobID int64) error {
-	files, err := store.ListJobFiles(s.DB, jobID)
+	jobDir := filepath.Join(s.Cfg.DownloadsDir, fmt.Sprintf("%d", jobID))
+	absJobDir, err := filepath.Abs(jobDir)
 	if err != nil {
 		return err
 	}
-	var errs []string
-
-	// Delete files
-	for _, f := range files {
-		rel, err := filepath.Rel(s.Cfg.WatchDir, f.Path)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			errs = append(errs, fmt.Sprintf("refuse to remove file outside watch dir: %s", f.Path))
-			continue
-		}
-		if err := os.Remove(f.Path); err != nil && !os.IsNotExist(err) {
-			errs = append(errs, fmt.Sprintf("remove file %s: %v", f.Path, err))
-		}
+	absDownloadsDir, err := filepath.Abs(s.Cfg.DownloadsDir)
+	if err != nil {
+		return err
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("errors removing artifacts: %s", strings.Join(errs, "; "))
+	// Security: ensure jobDir is inside downloadsDir
+	rel, err := filepath.Rel(absDownloadsDir, absJobDir)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("refuse to remove folder outside downloads dir: %s", absJobDir)
+	}
+
+	if err := os.RemoveAll(absJobDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove job directory %s: %v", absJobDir, err)
 	}
 
 	return nil

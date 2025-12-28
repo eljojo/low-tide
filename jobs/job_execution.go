@@ -27,11 +27,16 @@ func (m *Manager) runJob(jobID int64) {
 	}
 	log.Printf("worker: running job %d (status: %s)", jobID, j.Status)
 
-	baseline := snapshotFiles(m.watchRoot)
+	jobDir := filepath.Join(m.downloadsRoot, fmt.Sprintf("%d", jobID))
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		log.Printf("worker: failed to create job dir: %v", err)
+		return
+	}
+
 	ctx := &runningJob{
 		jobID:     jobID,
 		startedAt: time.Now(),
-		baseline:  baseline,
+		jobDir:    jobDir,
 		term:      terminal.New(500),
 	}
 	m.mu.Lock()
@@ -45,8 +50,8 @@ func (m *Manager) runJob(jobID int64) {
 	var failureMsg string
 	success := true
 
-	// Initial resync to catch any files created between snapshotFiles (baseline) and now.
-	if err := m.resyncJobFiles(jobID, baseline); err != nil {
+	// Initial resync (should be empty, but good for consistency)
+	if err := m.resyncJobFiles(jobID, ctx.jobDir); err != nil {
 		log.Printf("worker: initial resync job %d error: %v", jobID, err)
 	}
 
@@ -68,8 +73,8 @@ func (m *Manager) runJob(jobID int64) {
 		}
 	}
 
-	// Final resync with filesystem: include files created during this job only.
-	if err := m.resyncJobFiles(jobID, baseline); err != nil {
+	// Final resync with filesystem
+	if err := m.resyncJobFiles(jobID, ctx.jobDir); err != nil {
 		log.Printf("worker: resync job %d error: %v", jobID, err)
 	}
 
@@ -115,6 +120,11 @@ func (m *Manager) runJob(jobID int64) {
 	}
 
 	m.BroadcastJobSnapshot(jobID)
+	// Remove watches for the job directory as the job is finished.
+	// This helps in keeping the watcher clean and avoids leaking file descriptors.
+	if ctx.jobDir != "" {
+		_ = removeRecursiveWatch(m.Watcher, ctx.jobDir)
+	}
 	m.clearCurrent(jobID, ctx)
 }
 
@@ -134,7 +144,7 @@ func (m *Manager) runSingleURL(rj *runningJob, app *config.AppConfig, url string
 
 	cmd := exec.CommandContext(ctx, app.Command, args...)
 	cmd.Env = os.Environ()
-	cmd.Dir = m.Cfg.WatchDir
+	cmd.Dir = rj.jobDir
 	// Tell apps we are a terminal
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 	rj.cmd = cmd
@@ -205,7 +215,7 @@ func (m *Manager) appendAndBroadcastLog(rj *runningJob, data []byte) {
 	rj.term.Write(data) // Ticker will pick up the changes
 }
 
-func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) error {
+func (m *Manager) resyncJobFiles(jobID int64, dir string) error {
 	existing, err := store.ListJobFiles(m.DB, jobID)
 	if err != nil {
 		return err
@@ -216,17 +226,12 @@ func (m *Manager) resyncJobFiles(jobID int64, baseline map[string]struct{}) erro
 	}
 
 	seen := make(map[string]struct{})
-	err = filepath.Walk(m.watchRoot, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
 		if info.IsDir() {
 			return nil
-		}
-		if baseline != nil {
-			if _, ok := baseline[path]; ok {
-				return nil
-			}
 		}
 		seen[path] = struct{}{}
 		return store.InsertJobFile(m.DB, jobID, path, info.Size(), info.ModTime())
@@ -272,15 +277,4 @@ func (m *Manager) CurrentJobID() int64 {
 		return 0
 	}
 	return m.current.jobID
-}
-
-// isInBaseline reports whether the given path existed before the current job started.
-func (m *Manager) isInBaseline(path string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.current == nil || m.current.baseline == nil {
-		return false
-	}
-	_, ok := m.current.baseline[path]
-	return ok
 }

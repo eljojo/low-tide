@@ -36,10 +36,10 @@ func (c *Config) MatchAppForURL(u string) *AppConfig {
 
 // Config is the top-level configuration structure.
 type Config struct {
-	ListenAddr string      `yaml:"listen_addr" json:"listen_addr"`
-	DBPath     string      `yaml:"db_path" json:"db_path"`
-	WatchDir   string      `yaml:"watch_dir" json:"watch_dir"`
-	Apps       []AppConfig `yaml:"apps" json:"apps"`
+	ListenAddr   string      `yaml:"listen_addr" json:"listen_addr"`
+	DBPath       string      `yaml:"db_path" json:"db_path"`
+	DownloadsDir string      `yaml:"downloads_dir" json:"downloads_dir"`
+	Apps         []AppConfig `yaml:"apps" json:"apps"`
 }
 
 // Load reads the YAML config file from path.
@@ -63,8 +63,8 @@ func Load(path string) (*Config, error) {
 	if cfg.DBPath == "" {
 		cfg.DBPath = "lowtide.db"
 	}
-	if cfg.WatchDir == "" {
-		cfg.WatchDir = "downloads"
+	if cfg.DownloadsDir == "" {
+		cfg.DownloadsDir = "downloads"
 	}
 
 	return &cfg, nil

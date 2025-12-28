@@ -27,7 +27,7 @@ Benefits:
 4. Subprocess output is captured:
    - persisted into SQLite
    - streamed live to the browser
-5. The filesystem watcher observes artifacts written under `watch_dir` and records them in SQLite.
+5. The filesystem watcher observes artifacts written under `downloads_dir` and records them in SQLite.
 6. Connected browsers receive WebSocket updates and re-render.
 
 ## Data & storage behavior
@@ -47,18 +47,14 @@ The SQLite DB (`db_path`) currently stores:
 ### How artifacts are detected / attributed
 
 - Artifact discovery is **filesystem-driven**, not log parsing.
-- A recursive filesystem watcher observes changes under `watch_dir`.
-- When a job starts, Low Tide snapshots a **baseline** of files already present under `watch_dir`.
-  - Files in the baseline are not attributed to that job.
-- While a job is running, any newly created/updated files under `watch_dir` are upserted into `job_files` for that job.
-- On both job start and job finish, Low Tide performs a full filesystem resync to reduce the chance of missed watcher events.
-
-Because Low Tide runs **one job at a time**, “the currently running job” is the attribution mechanism.
+- Each job executes within its own subdirectory under `downloads_dir`, named by its job ID (e.g., `downloads/123/`).
+- While a job is running, any newly created/updated files within that job's directory are recorded in `job_files`.
+- On both job start and job finish, Low Tide performs a filesystem resync of the job's directory to ensure all artifacts are accounted for.
 
 ### Archive vs cleanup vs retry
 
 - **Archive**: marks the job as archived so it won’t show up in the default UI view. Artifacts are not deleted.
-- **Cleanup**: deletes the job’s recorded artifacts from disk (only under `watch_dir`) and marks the job as `cleaned` (and archived).
+- **Cleanup**: deletes the entire job directory from disk and marks the job as `cleaned` (and archived).
 - **Retry**: resets job status back to `queued`, clears terminal output and error state, and clears recorded `job_files` for that job.
 
 ## Frontend Development
@@ -110,7 +106,7 @@ See `frontend/.goosehints` for the full style guide.
 
 ## Notable implementation details
 
-- **Artifact paths are always validated** before download/delete to prevent escaping `watch_dir`.
+- **Artifact paths are always validated** before download/delete to prevent escaping `downloads_dir`.
 - **Artifact discovery is FS-driven** (watcher events + reconciliation), not log-parsing.
 - **Terminal rendering** uses ANSI-to-HTML conversion and supports **delta updates** to reduce DOM churn.
 

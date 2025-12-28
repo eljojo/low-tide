@@ -19,15 +19,14 @@ import (
 )
 
 type Manager struct {
-	DB        *sql.DB
-	Cfg       *config.Config
-	Watcher   *fsnotify.Watcher
-	Queue     chan int64
-	watchRoot string
+	DB            *sql.DB
+	Cfg           *config.Config
+	Watcher       *fsnotify.Watcher
+	Queue         chan int64
+	downloadsRoot string
 
 	mu      sync.Mutex
 	current *runningJob
-
 
 	stateSubs      map[chan []byte]struct{}
 	stateSubsMutex sync.Mutex
@@ -40,7 +39,7 @@ type runningJob struct {
 	jobID     int64
 	term      *terminal.Terminal
 	startedAt time.Time
-	baseline  map[string]struct{}
+	jobDir    string
 	pty       *os.File
 	cmd       *exec.Cmd
 	cancel    context.CancelFunc
@@ -51,29 +50,29 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	watchRoot, err := filepath.Abs(cfg.WatchDir)
+	downloadsRoot, err := filepath.Abs(cfg.DownloadsDir)
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(watchRoot, 0o755); err != nil {
+	if err := os.MkdirAll(downloadsRoot, 0o755); err != nil {
 		return nil, err
 	}
-	if err := addRecursiveWatch(w, watchRoot); err != nil {
+	if err := addRecursiveWatch(w, downloadsRoot); err != nil {
 		return nil, err
 	}
 
 	m := &Manager{
-		DB:         db,
-		Cfg:        cfg,
-		Watcher:    w,
-		Queue:      make(chan int64, 128),
-		stateSubs:  make(map[chan []byte]struct{}), // used for websocket subscribers
-		jobChanges: make(map[int64]*jobChange),     // used to keep track of dirty jobs
-		watchRoot:  watchRoot,
+		DB:            db,
+		Cfg:           cfg,
+		Watcher:       w,
+		Queue:         make(chan int64, 128),
+		stateSubs:     make(map[chan []byte]struct{}), // used for websocket subscribers
+		jobChanges:    make(map[int64]*jobChange),     // used to keep track of dirty jobs
+		downloadsRoot: downloadsRoot,
 	}
 
 	go m.watchLoop()
-	log.Printf("job manager started; watching %s", watchRoot)
+	log.Printf("job manager started; downloads root: %s", downloadsRoot)
 	go m.worker()
 	go m.filesPublisher()
 	go m.logPublisher()
