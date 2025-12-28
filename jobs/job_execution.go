@@ -73,6 +73,7 @@ func (m *Manager) runJob(jobID int64) {
 		log.Printf("worker: resync job %d error: %v", jobID, err)
 	}
 
+	// check to see if any output files were created
 	if success && failureMsg == "" {
 		files, err := store.ListJobFiles(m.DB, jobID)
 		if err != nil {
@@ -89,17 +90,6 @@ func (m *Manager) runJob(jobID int64) {
 				success = false
 				failureMsg = "no output files found (or all empty)"
 			}
-		}
-	}
-
-	// Heuristic to update title if it's generic
-	if success && (strings.Contains(j.Title, "http") || strings.Contains(j.Title, "www.") || j.Title == "") {
-		files, _ := store.ListJobFiles(m.DB, jobID)
-		if len(files) == 1 {
-			base := filepath.Base(files[0].Path)
-			ext := filepath.Ext(base)
-			newTitle := strings.TrimSuffix(base, ext)
-			_ = store.UpdateJobTitle(m.DB, jobID, newTitle)
 		}
 	}
 
