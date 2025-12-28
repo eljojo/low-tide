@@ -56,11 +56,12 @@ const TitleText = styled('div')`
 
 const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
   const handleClick = () => {
+    const state = useJobStore.getState();
     if (selected) {
-      useJobStore.getState().selectJob(null);
+      state.selectJob(null);
     } else {
-      useJobStore.getState().selectJob(job.id);
       fetchJobDetails(job.id);
+      state.selectJob(job.id);
     }
   };
 

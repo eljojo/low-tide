@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { AppState, Job } from './types';
-import { fetchJobLogs } from './api';
+import { fetchJobLogs, fetchJobDetails } from './api';
 
 // Non-reactive log storage to avoid React re-render overhead
 export const logBuffers: Record<number, string> = {};
@@ -66,3 +66,18 @@ export const useJobStore = create<AppState>((set) => ({
   toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
   setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed }),
 }));
+
+// Sync URL state
+useJobStore.subscribe((state) => {
+  let newPath = '/';
+  if (state.selectedJobId !== null) {
+    newPath = `/job/${state.selectedJobId}`;
+    if (!state.consoleCollapsed) {
+      newPath += '/logs';
+    }
+  }
+
+  if (window.location.pathname !== newPath) {
+    window.history.replaceState({}, '', newPath);
+  }
+});

@@ -7,9 +7,12 @@ export async function loadInitialData() {
     const jobs: Job[] = await res.json();
     useJobStore.getState().setJobs(jobs);
 
-    const runningJob = jobs.find(j => j.status === 'running');
-    if (runningJob) {
-      useJobStore.getState().selectJob(runningJob.id);
+    const state = useJobStore.getState();
+    if (state.selectedJobId === null) { // due to no selection from URL
+      const runningJob = jobs.find(j => j.status === 'running');
+      if (runningJob) {
+        state.selectJob(runningJob.id);
+      }
     }
   } catch (e) {
     console.error('Initial load failed', e);
@@ -49,7 +52,7 @@ export function connectWebSocket() {
   ws.onmessage = (ev) => {
     try {
       if (typeof ev.data !== 'string') return;
-      
+
       const msg = JSON.parse(ev.data);
       if (msg.type === 'job_snapshot' && msg.job) {
         const job = (msg.job as Job);

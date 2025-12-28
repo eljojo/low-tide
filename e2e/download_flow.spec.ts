@@ -70,6 +70,9 @@ test.describe('Low Tide E2E', () => {
 
     console.log(`Created Job ID: ${jobId}`);
 
+    // --- 1.5. Verify URL after queueing ---
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}$`));
+
     // --- 2. Wait for job to appear and succeed ---
     const jobItem = page.locator('.lt-job-item', { hasText: customTitle });
     await expect(jobItem).toBeVisible({ timeout: 15000 });
@@ -94,6 +97,7 @@ test.describe('Low Tide E2E', () => {
     if (await showLogsBtn.isVisible()) {
         await showLogsBtn.click();
     }
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}/logs$`));
     await expect(selectedPane.locator('.lt-terminal')).toBeVisible();
     await expect(selectedPane.locator('.lt-terminal')).toContainText('Job finished: Success');
     await page.waitForTimeout(100);
@@ -162,5 +166,12 @@ test.describe('Low Tide E2E', () => {
     await expect(manifest.locator('button:has-text("Download")')).toBeVisible();
     await page.waitForTimeout(100);
     await page.screenshot({ path: path.join(screenshotDir, '05-retried-success.png'), fullPage: true });
+
+    // --- 9. Reload and Persistence ---
+    await page.reload();
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}$`));
+    await expect(page.locator('section.lt-card', { hasText: customTitle })).toBeVisible();
+    // Manifest should be populated after reload (requires fetchJobDetails)
+    await expect(page.locator('.lt-file-hero')).toBeVisible({ timeout: 10000 });
   });
 });
