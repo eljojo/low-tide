@@ -14,8 +14,6 @@ const Header = styled(ListHeader)``;
 
 const SubTitle = styled('h3')``;
 
-
-
 const TitleContainer = styled('div')`
   display: flex;
   align-items: center;
