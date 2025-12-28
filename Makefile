@@ -1,6 +1,7 @@
 .PHONY: build build-frontend clean run test test-e2e test-all default clean-dev-db clean-run open-screenshots
 
 default: clean test-all
+	@echo "ready to sail! 🚤"
 
 test:
 	@echo "Running Go integration tests..."
