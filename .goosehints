@@ -5,7 +5,15 @@ README.md and CONTRIBUTING.md are full of context about this project, they're go
 NEVER load up files from /static/ into your context, it only includes the bundled files from /frontend/.
 NEVER run the built project binary yourself (i.e `go run`), ask human to do it. BEFORE confirming a bugfix, ALWAYS do a `make build` to ensure things build correctly.
 NEVER delete files without confirming with human first. every single time.
-WHEN NECESSARY run `make test` to ensure tests pass. When refactoring, ALWAYS ensure tests pass before considering done. Keep tests up to date with code changes.
+
+# Makefile Commands
+- `make build`: Bundles the frontend assets and builds the Go binary. Use this to ensure the project compiles correctly.
+- `make test`: Runs only the Go integration tests. Faster way to check backend logic.
+- `make test-e2e`: Builds the project and runs Playwright end-to-end tests. Use this to verify the full user flow. It takes a while to run, use sparingly.
+- `make test-all`: Runs both backend and frontend E2E tests. Also builds the application. Use this for a full verification. It takes a while.
+- `make run`: Bundles the frontend and starts the Go server. NEVER run this directly, ask human to do it.
+
+When working on the project, it's important to run tests and keep them up to date. If you want, you can run the individual test commands directly (ie `go test`, `npx playwright test`, etc), but using these make commands at the end of operations before telling a human things are done is good practice.
 
 # Pitfalls to avoid
 ## Note on special characters
