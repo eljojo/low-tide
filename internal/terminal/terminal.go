@@ -24,6 +24,7 @@ type Terminal struct {
 	cursorX      int
 	currentStyle []byte
 	dirty        map[int]bool
+	lastRendered map[int]string
 	// pending holds an incomplete ANSI escape sequence that was split across
 	// reads/writes (common when streaming from a PTY). Without buffering, we'd
 	// drop the ESC byte and then render the remaining bytes literally (e.g.
@@ -35,8 +36,9 @@ var reCSI = regexp.MustCompile(`^(\d*)(?:;(\d*))?([a-zA-Z])`)
 
 func New(maxLines int) *Terminal {
 	t := &Terminal{
-		maxLines: maxLines,
-		dirty:    make(map[int]bool),
+		maxLines:     maxLines,
+		dirty:        make(map[int]bool),
+		lastRendered: make(map[int]string),
 	}
 	t.resetBuffer()
 	return t
@@ -52,6 +54,7 @@ func (t *Terminal) resetBuffer() {
 	t.cursorX = 0
 	t.currentStyle = chars.ANSI_Reset
 	t.pending = nil
+	t.lastRendered = make(map[int]string)
 }
 
 func (t *Terminal) Write(data []byte) {
@@ -238,7 +241,11 @@ func (t *Terminal) GetDeltaHTML() map[int]string {
 	delta := make(map[int]string)
 	for idx, isDirty := range t.dirty {
 		if isDirty {
-			delta[idx] = t.renderLine(idx)
+			renderedLine := t.renderLine(idx)
+			if renderedLine != t.lastRendered[idx] {
+				delta[idx] = renderedLine
+				t.lastRendered[idx] = renderedLine
+			}
 			delete(t.dirty, idx)
 		}
 	}
