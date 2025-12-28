@@ -12,8 +12,6 @@ test.describe('Low Tide E2E', () => {
   const screenshotDir = path.join(tmpDir, 'screenshots');
 
   test.beforeAll(async () => {
-    // We can't easily delete e2e.db while the server is running,
-    // but we can ensure the screenshot dir is ready.
     if (!fs.existsSync(screenshotDir)) {
       fs.mkdirSync(screenshotDir, { recursive: true });
     }
@@ -39,10 +37,24 @@ test.describe('Low Tide E2E', () => {
     });
     page.on('pageerror', err => console.log('PAGE UNHANDLED ERROR:', err.message));
 
-    await page.setViewportSize({ width: 1280, height: 1200 });
+    await page.setViewportSize({ width: 1280, height: 400 });
 
     await page.goto('/');
     await expect(page).toHaveTitle(/Low Tide/);
+
+    // Disable all animations/transitions to ensure screenshots are stable
+    await page.addStyleTag({
+      content: `
+        *, *::before, *::after {
+          transition-duration: 0s !important;
+          transition-delay: 0s !important;
+          animation-duration: 0s !important;
+          animation-delay: 0s !important;
+        }
+      `
+    });
+    // Ensure fonts are loaded before taking screenshots
+    await page.evaluate(() => document.fonts.ready);
 
     // --- 1. Queue Job ---
     await page.waitForSelector('option[value="test-curl"]', { state: 'attached', timeout: 10000 });
@@ -64,8 +76,8 @@ test.describe('Low Tide E2E', () => {
     
     // Wait for success status
     await expect(jobItem.locator('.lt-pill')).toHaveText('SUCCESS', { timeout: 20000 });
-    await jobItem.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '01-job-success.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '01-job-success.png'), fullPage: true });
 
     // --- 3. View Details ---
     const selectedPane = page.locator('section.lt-card', { hasText: customTitle });
@@ -84,24 +96,24 @@ test.describe('Low Tide E2E', () => {
     }
     await expect(selectedPane.locator('.lt-terminal')).toBeVisible();
     await expect(selectedPane.locator('.lt-terminal')).toContainText('Job finished: Success');
-    await selectedPane.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '02-logs-visible.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '02-logs-visible.png'), fullPage: true });
 
     // --- 4.5. Unpin and Repin ---
     // Click the job item in the list to unpin (hide details)
     const activeList = page.locator('div.lt-card', { has: page.locator('.lt-label', { hasText: 'Active' }) });
     await jobItem.click();
     await expect(selectedPane).not.toBeVisible();
-    await activeList.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '02b-unpinned.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '02b-unpinned.png'), fullPage: true });
 
     // Click it again to repin (show details)
     await jobItem.click();
     await expect(selectedPane).toBeVisible();
     // Ensure that the console is collapsed (button says "SHOW LOGS") when re-pinned
     await expect(selectedPane.locator('button:has-text("SHOW LOGS")')).toBeVisible();
-    await selectedPane.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '02c-pinned-collapsed.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '02c-pinned-collapsed.png'), fullPage: true });
 
     // --- 5. Archive ---
     await selectedPane.locator('button:has-text("Archive")').click();
@@ -119,8 +131,8 @@ test.describe('Low Tide E2E', () => {
     
     const archivedJobItem = page.locator('section >> .lt-job-item', { hasText: customTitle });
     await expect(archivedJobItem).toBeVisible();
-    await archivedJobItem.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '03-archived.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '03-archived.png'), fullPage: true });
 
     // --- 7. Cleanup ---
     page.on('dialog', dialog => dialog.accept());
@@ -135,8 +147,8 @@ test.describe('Low Tide E2E', () => {
 
     await expect(archivedJobItem.locator('.lt-pill')).toHaveText('CLEANED', { timeout: 10000 });
     await expect(manifest.locator('button:has-text("Download")')).not.toBeVisible();
-    await selectedPane.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '04-cleaned.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '04-cleaned.png'), fullPage: true });
 
     // --- 8. Download again (Retry) ---
     const downloadAgainBtn = selectedPane.locator('button:has-text("Download again")');
@@ -148,7 +160,7 @@ test.describe('Low Tide E2E', () => {
     
     await expect(manifest.locator('.lt-file-hero')).toBeVisible();
     await expect(manifest.locator('button:has-text("Download")')).toBeVisible();
-    await selectedPane.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(screenshotDir, '05-retried-success.png') });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(screenshotDir, '05-retried-success.png'), fullPage: true });
   });
 });

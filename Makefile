@@ -1,4 +1,4 @@
-.PHONY: build build-frontend clean run test test-e2e test-all default clean-dev-db clean-run
+.PHONY: build build-frontend clean run test test-e2e test-all default clean-dev-db clean-run open-screenshots
 
 default: clean test-all
 
@@ -41,3 +41,7 @@ clean-dev-db:
 clean-run: clean-dev-db run
 run: build-frontend
 	@go run .
+
+open-screenshots:
+	@echo "Opening E2E test screenshots..."
+	@open e2e/tmp/screenshots
