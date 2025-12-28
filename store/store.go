@@ -91,7 +91,7 @@ func InsertJob(db *sql.DB, appID string, url string, createdAt time.Time) (int64
 	if u, err := parseURLTitle(url); err == nil {
 		title = u
 	}
-	res, err := db.Exec(`INSERT INTO jobs (app_id, url, original_url, status, created_at, archived, title) VALUES (?, ?, ?, 'queued', ?, 0, ?)`, appID, url, url, createdAt, title)
+	res, err := db.Exec(`INSERT INTO jobs (app_id, url, original_url, status, created_at, archived, title) VALUES (?, ?, ?, ?, ?, 0, ?)`, appID, url, url, StatusQueued, createdAt, title)
 	if err != nil {
 		return 0, err
 	}
@@ -201,7 +201,7 @@ func ListJobs(db *sql.DB, limit int) ([]Job, error) {
 }
 
 func UpdateJobStatusRunning(db *sql.DB, id int64, startedAt time.Time) error {
-	_, err := db.Exec(`UPDATE jobs SET status = 'running', started_at = ? WHERE id = ?`, startedAt, id)
+	_, err := db.Exec(`UPDATE jobs SET status = ?, started_at = ? WHERE id = ?`, StatusRunning, startedAt, id)
 	return err
 }
 
@@ -216,22 +216,22 @@ func ClearJobPID(db *sql.DB, id int64, exitCode int) error {
 }
 
 func MarkJobSuccess(db *sql.DB, id int64, finishedAt time.Time, logs string) error {
-	_, err := db.Exec(`UPDATE jobs SET status = 'success', finished_at = ?, logs = ? WHERE id = ?`, finishedAt, logs, id)
+	_, err := db.Exec(`UPDATE jobs SET status = ?, finished_at = ?, logs = ? WHERE id = ?`, StatusSuccess, finishedAt, logs, id)
 	return err
 }
 
 func MarkJobCancelled(db *sql.DB, id int64, finishedAt time.Time, logs string) error {
-	_, err := db.Exec(`UPDATE jobs SET status = 'cancelled', finished_at = ?, logs = ? WHERE id = ?`, finishedAt, logs, id)
+	_, err := db.Exec(`UPDATE jobs SET status = ?, finished_at = ?, logs = ? WHERE id = ?`, StatusCancelled, finishedAt, logs, id)
 	return err
 }
 
 func MarkJobFailed(db *sql.DB, id int64, finishedAt time.Time, msg string, logs string) error {
-	_, err := db.Exec(`UPDATE jobs SET status = 'failed', finished_at = ?, error_message = ?, logs = ? WHERE id = ?`, finishedAt, msg, logs, id)
+	_, err := db.Exec(`UPDATE jobs SET status = ?, finished_at = ?, error_message = ?, logs = ? WHERE id = ?`, StatusFailed, finishedAt, msg, logs, id)
 	return err
 }
 
 func MarkJobCleaned(db *sql.DB, id int64) error {
-	_, err := db.Exec(`UPDATE jobs SET status = 'cleaned', archived = 1 WHERE id = ?`, id)
+	_, err := db.Exec(`UPDATE jobs SET status = ?, archived = 1 WHERE id = ?`, StatusCleaned, id)
 	return err
 }
 
@@ -241,7 +241,7 @@ func ResetJobForRetry(db *sql.DB, id int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`UPDATE jobs SET status='queued', pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL, logs=NULL, archived=0 WHERE id=?`, id); err != nil {
+	if _, err := tx.Exec(`UPDATE jobs SET status=?, pid=NULL, exit_code=NULL, error_message=NULL, started_at=NULL, finished_at=NULL, logs=NULL, archived=0 WHERE id=?`, StatusQueued, id); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM job_files WHERE job_id = ?`, id); err != nil {
