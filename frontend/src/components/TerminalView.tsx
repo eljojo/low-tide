@@ -31,18 +31,30 @@ export const TerminalView = ({ jobId }: { jobId: number }) => {
     const handleStream = (e: any) => {
       if (e.detail.job_id === jobId && termRef.current) {
         const msg = e.detail;
+        // Streams carry “delta lines”: a map of { lineIndex: htmlString }.
         if (msg.lines) {
           const wasAtBottom = isAtBottom();
-          // Line delta update
+
+          // For each line in the delta:
+          // - If the line already exists in the DOM, replace it (outerHTML).
+          // - If it doesn’t exist (common after a retry that cleared the buffer),
+          //   append it to the end so the terminal shows new output immediately.
           for (const [idxStr, htmlLine] of Object.entries(msg.lines)) {
             const idx = parseInt(idxStr);
             let lineDiv = termRef.current.querySelector(`[data-line="${idx}"]`);
             if (lineDiv) {
               lineDiv.outerHTML = htmlLine as string;
+            } else {
+              termRef.current.insertAdjacentHTML('beforeend', htmlLine as string);
             }
           }
+
+          // Keep the non-reactive cache aligned with the live DOM so
+          // reselecting the job shows the same content without a refetch.
+          logBuffers[jobId] = termRef.current.innerHTML;
+
           if (wasAtBottom) {
-             scrollBottom();
+            scrollBottom();
           }
         }
       }

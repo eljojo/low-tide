@@ -1,6 +1,6 @@
 import { styled } from 'goober';
 import { Job } from '../types';
-import { useJobStore } from '../store';
+import { useJobStore, logBuffers } from '../store';
 
 const PaneHeader = styled('div')`
   display: flex;
@@ -37,6 +37,8 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
   const title = job.title || job.url || job.original_url || `#${job.id}`;
 
   const handleRetry = () => {
+    logBuffers[job.id] = '';
+    window.dispatchEvent(new CustomEvent('job-logs-loaded', { detail: { jobId: job.id } }));
     fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
     useJobStore.getState().setConsoleCollapsed(false);
   };
