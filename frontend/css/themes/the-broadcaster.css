@@ -6,6 +6,7 @@ body[data-theme='the-broadcaster'] {
   --accent2: #0033aa;
   --muted: #555555;
   --card-bg: #ffffff;
+  --success: #00aa00;
   --danger: #aa0000;
   --font-main: 'Helvetica', 'Arial', sans-serif;
   --font-mono: 'Monaco', 'Courier New', monospace;

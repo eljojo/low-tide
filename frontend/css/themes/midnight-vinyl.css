@@ -6,6 +6,7 @@ body[data-theme='midnight-vinyl'] {
   --accent2: #00f2ff;
   --muted: #66666a;
   --card-bg: #161618;
+  --success: #2ecc71;
   --danger: #ff3b3b;
   --font-main: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;

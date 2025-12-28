@@ -157,6 +157,11 @@ footer {
   border: 1px solid var(--border-color);
 }
 
+.lt-btn-success {
+  background: var(--success);
+  color: #fff;
+}
+
 .lt-btn-danger {
   background: var(--danger);
   color: #fff;

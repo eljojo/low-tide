@@ -77,7 +77,7 @@ const FileHero = ({ file, jobId, isCleaned }: { file: FileInfo; jobId: number; i
       </div>
     </div>
     {!isCleaned && (
-      <button className="lt-btn" onClick={() => window.location.href = `/api/jobs/${jobId}/files/${file.id}`}>
+      <button className="lt-btn lt-btn-success" onClick={() => window.location.href = `/api/jobs/${jobId}/files/${file.id}`}>
         Download
       </button>
     )}
@@ -108,7 +108,7 @@ const FileTable = ({ files, jobId, isCleaned }: { files: FileInfo[]; jobId: numb
     </TableScrollArea>
     {!isCleaned && (
       <TableFooter>
-        <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${jobId}/zip`}>
+        <button className="lt-btn lt-btn-success lt-btn-sm" onClick={() => window.location.href = `/api/jobs/${jobId}/zip`}>
           Download All
         </button>
       </TableFooter>
