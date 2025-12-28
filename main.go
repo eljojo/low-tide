@@ -19,6 +19,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"low-tide/config"
+	"low-tide/internal/cleanup"
 	"low-tide/jobs"
 	"low-tide/store"
 )
@@ -39,6 +40,8 @@ type Server struct {
 }
 
 func main() {
+	log.Printf("Starting Low Tide ⛵️")
+
 	cfgPath := "config/config.yaml"
 	if env := os.Getenv("LOWTIDE_CONFIG"); env != "" {
 		cfgPath = env
@@ -47,6 +50,11 @@ func main() {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
+	}
+
+	// Clean up empty folders in the watch directory before starting the server
+	if err := cleanup.DeleteEmptyFolders(cfg.WatchDir); err != nil {
+		log.Printf("error cleaning up empty folders: %v", err)
 	}
 
 	db, err := sql.Open("sqlite3", cfg.DBPath+"?_fk=1")
