@@ -67,3 +67,11 @@ jobs:
         name: playwright-report
         path: e2e/tmp/playwright-report/
         retention-days: 30
+
+    - name: Upload screenshots
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: screenshots
+        path: e2e/tmp/screenshots/
+        retention-days: 30
