@@ -36,7 +36,7 @@ It’s built for homelabs where you want:
 
 ## Configuration (high level)
 
-Low Tide is configured via a YAML file, take a look at `config/example.yaml` for a full example.
+Low Tide is configured via a YAML file; see [`config/config.yaml`](config/config.yaml) for a complete example.
 
 ```yaml
 listen_addr: ":8080"
@@ -56,8 +56,6 @@ apps:
     regex: '^https?://(www\.|listen\.)?tidal\.com/'
 ```
 
----
-
 ## Status, scope, and non-goals
 
 Low Tide is intentionally small and opinionated.
@@ -70,14 +68,25 @@ If you want multi-user permissions, remote storage backends, and a full download
 
 ---
 
-## Security notes (important)
+## Limitations / known caveats
 
-This repo is best treated as **LAN-only / behind a reverse proxy with auth** today.
+Low Tide is intentionally opinionated. A few behaviors are important to understand up front:
 
-- The WebSocket upgrader currently accepts all origins (`CheckOrigin: true`).
+- **No auth, no multi-user permissions**: treat this as **LAN-only** or put it behind a reverse proxy with auth.
+- **Sequential execution**: jobs are processed **one-at-a-time** by design.
+- **Single URL per job**: pasting multiple URLs creates multiple jobs (not a multi-step workflow).
+- **Artifact tracking is `watch_dir`-scoped**:
+  - Only files written **under `watch_dir`** can be detected/downloaded/cleaned.
+  - Files that existed before a job starts are treated as baseline and won’t be attributed to that job.
+  - Since only one job runs at a time, file attribution is based on “the currently running job”.
 - The server executes configured commands; treat config changes as privileged.
 
 ---
+
+## Docs
+
+- Config example: [`config/config.yaml`](config/config.yaml)
+- Contributor/architecture guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Contributing
 

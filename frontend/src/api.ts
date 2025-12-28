@@ -66,8 +66,6 @@ export function connectWebSocket() {
         }
       } else if (msg.type === 'job_log') {
         window.dispatchEvent(new CustomEvent('job-log-stream', { detail: msg }));
-      } else if (msg.type === 'jobs_archived') {
-        loadInitialData();
       }
     } catch (e) { console.error(e); }
   };

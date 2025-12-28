@@ -9,7 +9,6 @@ The frontend is intentionally a thin view over server state.
 - `/ws/state` emits:
   - `{ type: "job_snapshot", job, updated_at }` => update one job
   - `{ type: "job_log", job_id, lines }` => stream terminal delta lines
-  - `{ type: "jobs_archived" }` => refetch list
 
 ## Performance decisions
 - Logs are stored outside React state (`logBuffers`) to avoid rerender pressure.
