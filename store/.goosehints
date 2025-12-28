@@ -1,0 +1,19 @@
+# Context (store/)
+SQLite is the durable source of truth for jobs, logs, and discovered artifacts.
+
+## Schema & lifecycle
+- Tables: `jobs`, `job_files`
+- `job_files` has a unique constraint on `(job_id, path)` and uses UPSERT semantics.
+
+## Job model invariants
+- Status is one of: `queued | running | success | failed | cancelled | cleaned`
+- `archived` is a separate flag from status.
+  - “Cleanup” sets `status=cleaned` and `archived=1`.
+
+## Important behaviors
+- `InsertJob()` derives an initial title from the URL (host + path) so jobs aren’t unnamed.
+- Retry (`ResetJobForRetry`) resets job fields and deletes `job_files` for a fresh run.
+- File paths are stored as absolute paths in DB; the server converts to relative-to-`watch_dir` when emitting snapshots.
+
+## Security-sensitive areas
+- Any file download/delete must ensure paths stay under `watch_dir` (server enforces; keep that invariant).

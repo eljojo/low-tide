@@ -1,0 +1,34 @@
+/* ==========================================================================
+   TERMINAL & LOGS
+   ========================================================================== */
+
+.lt-terminal {
+  font-family: monospace; /* don't use var(--font-mono); */
+  white-space: pre-wrap;
+}
+
+/* Full ANSI Color Palette */
+.term-fg30 { color: #2e3436; }
+.term-fg31 { color: #cc0000; }
+.term-fg32 { color: #4e9a06; }
+.term-fg33 { color: #c4a000; }
+.term-fg34 { color: #3465a4; }
+.term-fg35 { color: #75507b; }
+.term-fg36 { color: #06989a; }
+.term-fg37 { color: #d3d7cf; }
+.term-fg90 { color: #555753; }
+.term-fg91 { color: #ef2929; }
+.term-fg92 { color: #8ae234; }
+.term-fg93 { color: #fce94f; }
+.term-fg94 { color: #729fcf; }
+.term-fg95 { color: #ad7fa8; }
+.term-fg96 { color: #34e2e2; }
+.term-fg97 { color: #eeeeec; }
+.term-bg40 { background-color: #2e3436; }
+.term-bg41 { background-color: #cc0000; }
+.term-bg42 { background-color: #4e9a06; }
+.term-bg43 { background-color: #c4a000; }
+.term-bg44 { background-color: #3465a4; }
+.term-bg45 { background-color: #75507b; }
+.term-bg46 { background-color: #06989a; }
+.term-bg47 { background-color: #d3d7cf; }

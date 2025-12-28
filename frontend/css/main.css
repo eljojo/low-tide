@@ -1,0 +1,276 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono&family=Lora:ital,wght@0,400;0,700;1,400&display=swap');
+
+@import "./themes/archivist.css";
+@import "./themes/midnight-vinyl.css";
+@import "./themes/the-broadcaster.css";
+@import "./terminal.css";
+
+/* ==========================================================================
+   RESET & BASE
+   ========================================================================== */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-main);
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  line-height: 1.6;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+main {
+  flex: 1;
+  padding: 3rem 3rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  align-items: stretch;
+  gap: 3rem;
+  width: 100%;
+}
+
+/* ==========================================================================
+   LOW TIDE FRAMEWORK (The Style Guide)
+   ========================================================================== */
+
+/* Layout Elements */
+header {
+  padding: 1.25rem 3rem;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  z-index: 10;
+  position: relative;
+}
+
+footer {
+  padding: 2rem 3rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  background: var(--header-bg);
+}
+
+/* Containers */
+.lt-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Typography */
+.lt-title-section {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+  margin-top: 0;
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.lt-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* Form Elements */
+.lt-input, .lt-select, .lt-textarea {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--fg);
+  padding: 0.8rem 1rem;
+  font-family: var(--font-main);
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.lt-input:focus, .lt-select:focus, .lt-textarea:focus {
+  border-color: var(--accent2);
+  background: var(--card-bg);
+  box-shadow: 0 0 0 3px rgba(2, 117, 216, 0.05);
+}
+
+/* Buttons */
+.lt-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.7rem 1.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.lt-btn:hover {
+  filter: saturate(1.1) brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.lt-btn:active {
+  transform: translateY(1px);
+}
+
+.lt-btn-secondary {
+  background: rgba(0,0,0,0.04);
+  color: var(--fg);
+  border: 1px solid var(--border-color);
+}
+
+.lt-btn-success {
+  background: var(--success);
+  color: #fff;
+}
+
+.lt-btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.lt-btn-sm {
+  font-size: 0.65rem;
+  padding: 0.3rem 0.75rem;
+}
+
+/* Status & Indicators */
+.lt-pill {
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: inline-block;
+}
+
+.lt-pill-queued { background: #f0f0f0; color: #888; }
+.lt-pill-running { background: rgba(2, 117, 216, 0.1); color: var(--accent2); }
+.lt-pill-success { background: #e9f7ef; color: #27ae60; }
+.lt-pill-failed  { background: #fdf2f2; color: var(--danger); }
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.5; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.5; }
+}
+
+.lt-indicator-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent2);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent2);
+  animation: pulse 2s infinite ease-in-out;
+  margin-right: 0.5rem;
+}
+
+/* Standardized Job Item */
+.lt-job-item {
+  /* Base styles are in component, but this allows themes to target it */
+}
+
+
+/* Scrollable Areas */
+.lt-scrollable {
+  overflow-y: auto;
+  padding-right: 0.5rem; /* Space for scrollbar */
+}
+
+.lt-scrollable::-webkit-scrollbar {
+  width: 6px;
+  background: rgba(0,0,0,0.05);
+}
+
+.lt-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+/* One-off Utility for new job form to ensure it aligns nicely */
+.new-job-card {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Utilities */
+.lt-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.lt-flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lt-mono {
+  font-family: var(--font-mono);
+}
+
+.lt-text-right {
+  text-align: right;
+}
+
+.lt-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   THEME SPECIFIC OVERRIDES
+   ========================================================================== */
+/* Default Terminal Variables (Dark) */
+:root {
+  --term-bg: #0f0f11;
+  --term-fg: #d1d1d1;
+}
+
+body[data-theme='archivist'] {
+  --term-bg: #fdfaf6;
+  --term-fg: #3a3a3a;
+  --border-color: rgba(0, 0, 0, 0.1);
+}

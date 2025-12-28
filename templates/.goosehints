@@ -1,0 +1,9 @@
+# Context (templates/)
+Server renders a minimal HTML shell and injects runtime config for the SPA.
+
+## Key behavior
+- `index.html` receives `AppsJSON` from the server, which becomes `window.CONFIG.apps`.
+- The rest of the UI is served from embedded static assets under `/static/`.
+
+## Rule
+- Do not edit `/static/` by hand; it is bundled output from `frontend/`.

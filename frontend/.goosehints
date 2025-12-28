@@ -1,0 +1,26 @@
+# Frontend Philosophy & Style Guide
+
+This project follows a "Mini Framework" approach for frontend styling to ensure consistency while allowing for flexible theming and view-specific logic.
+
+## 1. The Contract
+The "Mini Framework" serves as the contract between Themes and Views.
+- **The Framework (`main.css`)**: Defines the standard design tokens (variables) and base component classes (`.lt-*`).
+- **Themes**: Implement the visual look by overriding variables and, if absolutely necessary, targeting `.lt-*` classes. Themes should NOT target raw HTML elements (like `button`) unless setting a global default that applies everywhere.
+- **Views (Components)**: Are implemented against the Framework. They use `.lt-*` classes for standard styling and `goober` for semantic, logic-driven styling.
+
+## 2. CSS Architecture
+- **Global Styles**: Located in `css/main.css`. This is the source of truth.
+- **Prefix**: All framework classes are prefixed with `.lt-` (e.g., `.lt-btn`, `.lt-card`, `.lt-input`).
+- **Utility Classes**: Used sparingly for layout and common patterns (e.g., `.lt-row`, `.lt-flex-between`).
+- **Themes**: Located in `css/themes/`.
+
+## 3. Component Architecture (Preact + Goober)
+- **Semantic Components**: Use `goober` to create named, semantic components within a file (e.g., `Wrapper`, `Header`, `Item`).
+- **Reusable Logic**: Extract truly reusable visual patterns into their own components (e.g., `Grid`, `ScrollableList`).
+- **Standardization**: Views should look consistent. If a view needs a button, use `.lt-btn`. If it needs a card, use `.lt-card`.
+
+## 4. Development Rules
+- **Do not** add Tailwind-style utility soups.
+- **Do not** write raw CSS in components unless it's a specific inline override for a one-off.
+- **Do** favor semantic class names over generic `div` soup.
+- **Do** use CSS variables for colors, fonts, and spacing to ensure theming works.

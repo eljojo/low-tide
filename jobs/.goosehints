@@ -1,0 +1,21 @@
+# Context (jobs/)
+This package is the orchestration heart: one worker runs one job at a time, streams logs, and tracks artifacts via FS watching.
+
+## Core design decisions
+- Deliberately sequential: `Manager.worker()` processes jobs one-at-a-time from `Manager.Queue`.
+- Files are discovered via filesystem events + reconciliation, not via parsing CLI output.
+- Frontend state is driven by server broadcasts (see `BroadcastJobSnapshot`), aligned with CONTRIBUTING’s “snapshot as truth”.
+
+## How artifact tracking works
+- A baseline snapshot of files in `watch_dir` is taken before a job runs; baseline files are ignored.
+- `fsnotify` is not recursive, so watches are added recursively AND new directories are watched as they appear.
+- To close races, new directories trigger a sibling scan; jobs also do initial/final `resyncJobFiles()` walks.
+
+## Log streaming model
+- Subprocess runs under a PTY (`creack/pty`) to preserve terminal output.
+- A server-side virtual terminal (`internal/terminal`) turns ANSI into HTML.
+- Logs stream as delta updates on a timer (`logPublisher()`), not per-line events.
+
+## Cancellation & recovery
+- Cancel only affects the currently running job (context cancel + PTY close + process kill).
+- On restart, previously `running` jobs are marked `cancelled` in SQLite; previously `queued` jobs are re-queued in memory.

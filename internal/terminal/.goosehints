@@ -1,0 +1,13 @@
+# Context (internal/terminal/)
+Server-side virtual terminal: consumes raw PTY bytes and produces HTML (plus delta updates).
+
+## Key behaviors
+- Maintains a fixed-size line buffer (`maxLines`) and marks dirty lines for delta rendering.
+- Buffers incomplete ANSI escape sequences across reads (`pending`) to avoid rendering broken escapes.
+- `GetDeltaHTML()` returns only dirty lines; `RenderHTML()` renders full buffer (used for persisted logs).
+
+## Dependencies
+- Uses `github.com/buildkite/terminal-to-html/v3` to render ANSI bytes into HTML.
+
+## Gotchas
+- Escape-sequence parsing is intentionally partial (common CSI sequences + style capture). Be careful expanding it.

@@ -1,0 +1,6 @@
+# Context (internal/chars/)
+Centralized special characters & ANSI constants to avoid literal-newline and escape-sequence issues in Go source.
+
+## Rule
+- If you need special chars / newlines / ANSI bytes in Go strings, add them here and reference them.
+- Avoid embedding literal newlines in Go strings when possible; prefer `chars.NewLine` / `chars.CRLF`.
