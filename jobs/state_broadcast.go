@@ -112,6 +112,7 @@ func (m *Manager) BroadcastJobSnapshot(jobID int64) {
 	m.jobChangesMu.Lock()
 	ch := m.jobChanges[jobID]
 	if ch == nil {
+		ch = &jobChange{}
 		m.jobChanges[jobID] = ch
 	}
 

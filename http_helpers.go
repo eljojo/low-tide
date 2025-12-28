@@ -41,7 +41,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s done in %s, served to %s", r.Method, r.URL.Path, time.Since(start), r.RemoteAddr)
+		log.Printf("%s %s%s\t| done in %s, served to %s", r.Method, r.URL.Path, r.URL.RawQuery, time.Since(start), r.RemoteAddr)
 	})
 }
 
