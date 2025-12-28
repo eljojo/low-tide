@@ -17,6 +17,15 @@ body[data-theme='midnight-vinyl'] {
   --border-color: #2a2a2e;
 }
 
+/* In midnight vinyl, we want buttons to be a bit more muted/recessed by default */
+body[data-theme='midnight-vinyl'] .lt-btn {
+  filter: saturate(0.8) brightness(0.8);
+}
+
+body[data-theme='midnight-vinyl'] .lt-btn:hover {
+  filter: saturate(1.1) brightness(1.1);
+}
+
 /* Target the framework class, not the element */
 body[data-theme='midnight-vinyl'] .lt-btn-secondary {
   background: rgba(255,255,255,0.05);

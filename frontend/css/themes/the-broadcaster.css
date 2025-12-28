@@ -86,8 +86,8 @@ body[data-theme='the-broadcaster'] .lt-pill {
   font-weight: 900;
 }
 
-body[data-theme='the-broadcaster'] .lt-pill-running { border-color: #00ff00 !important; }
-body[data-theme='the-broadcaster'] .lt-pill-success { border-color: #00ff00 !important; }
+body[data-theme='the-broadcaster'] .lt-pill-running { border-color: #00dbff !important; }
+body[data-theme='the-broadcaster'] .lt-pill-success { border-color: #38cc38 !important; }
 body[data-theme='the-broadcaster'] .lt-pill-failed  { border-color: #ff0000 !important; }
 body[data-theme='the-broadcaster'] .lt-pill-queued  { border-color: #888 !important; }
 
