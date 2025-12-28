@@ -64,8 +64,8 @@ func fetchTitle(urlStr string) (string, error) {
 		return "", fmt.Errorf("status code %d", resp.StatusCode)
 	}
 
-	// TODO: maybe Read first 512KB for parsing, to avoid huge downloads if it's not a normal page. TEST to make sure it works well.
-	return parseHTMLTitle(resp.Body), nil
+	bodyReader := io.LimitReader(resp.Body, 1024*1024) // 1MB KB (youtube hides the title deep)
+	return parseHTMLTitle(bodyReader), nil
 }
 
 func parseHTMLTitle(r io.Reader) string {

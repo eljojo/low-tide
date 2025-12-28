@@ -108,47 +108,51 @@ func parseURLTitle(raw string) (string, error) {
 	return p, nil
 }
 
-func scanJob(row interface {
-	Scan(dest ...interface{}) error
-}) (*Job, error) {
+func scanJob(row interface{ Scan(dest ...interface{}) error }, includeLogs bool) (*Job, error) {
 	var j Job
 	var logs sql.NullString
 	var urlStr string
 	var status string
 	var archivedInt int
-	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title, &logs); err != nil {
-		return nil, err
-	}
-	j.Status = JobStatus(status)
-	j.Archived = archivedInt != 0
-	j.URL = urlStr
-	j.Logs = logs.String
-	return &j, nil
-}
 
-// TODO: merge into a version of scanJob that doesn't include logs for listing jobs
-func scanJobShort(row interface {
-	Scan(dest ...interface{}) error
-}) (*Job, error) {
-	var j Job
-	var urlStr string
-	var status string
-	var archivedInt int
-	if err := row.Scan(&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title); err != nil {
-		return nil, err
+	scanArgs := []interface{}{
+		&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage,
+		&j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title,
 	}
+	if includeLogs {
+		scanArgs = append(scanArgs, &logs)
+	}
+
+	// This is a bit of a hack to dynamically call Scan with the right number of arguments
+	// because Scan doesn't support a variadic slice.
+	switch len(scanArgs) {
+	case 13:
+		if err := row.Scan(scanArgs[0], scanArgs[1], scanArgs[2], scanArgs[3], scanArgs[4], scanArgs[5], scanArgs[6], scanArgs[7], scanArgs[8], scanArgs[9], scanArgs[10], scanArgs[11], scanArgs[12]); err != nil {
+			return nil, err
+		}
+	case 14:
+		if err := row.Scan(scanArgs[0], scanArgs[1], scanArgs[2], scanArgs[3], scanArgs[4], scanArgs[5], scanArgs[6], scanArgs[7], scanArgs[8], scanArgs[9], scanArgs[10], scanArgs[11], scanArgs[12], scanArgs[13]); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, errors.New("invalid number of scan arguments")
+	}
+
 	j.Status = JobStatus(status)
 	j.Archived = archivedInt != 0
 	j.URL = urlStr
+	if includeLogs {
+		j.Logs = logs.String
+	}
 	return &j, nil
 }
 
 func GetJob(db *sql.DB, id int64) (*Job, error) {
 	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE id = ?`, id)
-	return scanJob(row)
+	return scanJob(row, true)
 }
 
-// TODO: merge with ListJobs somehow, to avoid code duplication
+
 func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
 	rows, err := db.Query(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE status = ?`, string(status))
 	if err != nil {
@@ -157,7 +161,7 @@ func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
 	defer rows.Close()
 	var out []Job
 	for rows.Next() {
-		j, err := scanJob(rows)
+		j, err := scanJob(rows, true)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +191,7 @@ func ListJobs(db *sql.DB, limit int) ([]Job, error) {
 
 	var out []Job
 	for rows.Next() {
-		j, err := scanJobShort(rows)
+		j, err := scanJob(rows, false)
 		if err != nil {
 			return nil, err
 		}
@@ -246,11 +250,7 @@ func ResetJobForRetry(db *sql.DB, id int64) error {
 	return tx.Commit()
 }
 
-// TODO: ArchiveFinishedJobs may not be necessary, look into main.go
-func ArchiveFinishedJobs(db *sql.DB) error {
-	_, err := db.Exec(`UPDATE jobs SET archived = 1 WHERE archived = 0 AND status IN ('success','failed')`)
-	return err
-}
+
 
 func ArchiveJob(db *sql.DB, id int64) error {
 	_, err := db.Exec(`UPDATE jobs SET archived = 1 WHERE id = ?`, id)

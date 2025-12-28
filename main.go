@@ -86,9 +86,7 @@ func main() {
 	mux.Handle("/static/", http.FileServer(http.FS(assets)))
 	mux.HandleFunc("/api/jobs", srv.handleJobs)
 
-	// TODO: is anything calling this endpoint? if not, remove it
-	// if removing it, also check for unnecessary code like store.ArchiveFinishedJobs
-	mux.HandleFunc("/api/jobs/clear", srv.handleClearJobs)
+
 
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
 	mux.HandleFunc("/ws/state", srv.handleStateWS)
@@ -195,19 +193,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleClearJobs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	if err := store.ArchiveFinishedJobs(s.DB); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	// broadcast state change that jobs were archived
-	s.Mgr.BroadcastState(map[string]string{"type": "jobs_archived"})
-	w.WriteHeader(http.StatusNoContent)
-}
+
 
 func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 	// /api/jobs/{id}/{action} or /api/jobs/{id}/files/{fileid}

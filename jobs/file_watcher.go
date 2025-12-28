@@ -25,7 +25,6 @@ func (m *Manager) watchLoop() {
 			if ev.Op&(fsnotify.Create|fsnotify.Write) != 0 {
 				m.handleFileEvent(ev.Name)
 			}
-			// TODO: would we benefit from a specific handler for rename? or is it better to treat as remove since it'll show up as create or write anyway?
 			if ev.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
 				m.handleRemoveEvent(ev.Name)
 			}
