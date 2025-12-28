@@ -5,6 +5,7 @@ README.md and CONTRIBUTING.md are full of context about this project, they're go
 NEVER load up files from /static/ into your context, it only includes the bundled files from /frontend/.
 NEVER run the built project binary yourself (i.e `go run`), ask human to do it. BEFORE confirming a bugfix, ALWAYS do a `make build` to ensure things build correctly.
 NEVER delete files without confirming with human first. every single time.
+WHEN NECESSARY run `make test` to ensure tests pass. When refactoring, ALWAYS ensure tests pass before considering done. Keep tests up to date with code changes.
 
 # Pitfalls to avoid
 ## Note on special characters

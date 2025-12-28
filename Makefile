@@ -1,4 +1,8 @@
-.PHONY: build build-frontend clean run
+.PHONY: build build-frontend clean run test
+test:
+	@echo "Running integration tests..."
+	@go test -v .
+
 
 build: build-frontend
 	@echo "Building Go application..."
