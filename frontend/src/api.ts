@@ -1,5 +1,6 @@
 import { Job } from './types';
 import { useJobStore, logBuffers } from './store';
+import { navigate } from 'wouter/use-browser-location';
 
 export async function loadInitialData() {
   try {
@@ -55,11 +56,22 @@ export function connectWebSocket() {
         const oldStatus = state.jobs[job.id]?.status;
         state.updateJob(job);
         if (job.id === state.selectedJobId) {
-          if (oldStatus === 'running' && job.status === 'success') {
-            state.setConsoleCollapsed(true);
+          if (oldStatus === 'running' && (job.status === 'success' || job.status === 'failed' || job.status === 'cancelled')) {
+            if (job.status === 'success') {
+              state.setConsoleCollapsed(true);
+            }
+
+            // If the current job finished, check if we should move to another one
+            const otherRunningJob = Object.values(state.jobs).find(j => j.id !== job.id && j.status === 'running');
+            if (otherRunningJob) {
+              navigate(`/job/${otherRunningJob.id}`);
+            } else {
+              // No other job running yet, unpin so the next one that starts is auto-selected
+              state.setIsPinned(false);
+            }
           }
         } else if (job.status === 'running' && !state.isPinned) {
-          useJobStore.getState().selectJob(job.id);
+          navigate(`/job/${job.id}`);
         }
       } else if (msg.type === 'job_log') {
         window.dispatchEvent(new CustomEvent('job-log-stream', { detail: msg }));

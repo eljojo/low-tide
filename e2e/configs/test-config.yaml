@@ -10,3 +10,7 @@ apps:
     name: "Test Multi"
     command: "sh"
     args: ["-c", "echo 'file1' > file1.txt && echo 'file2' > file2.txt"]
+  - id: "test-sleep"
+    name: "Test Sleep"
+    command: "sh"
+    args: ["-c", "sleep 1 && echo done > done.txt"]

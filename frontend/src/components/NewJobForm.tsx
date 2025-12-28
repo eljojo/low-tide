@@ -25,6 +25,7 @@ const Actions = styled('div')`
 export const NewJobForm = () => {
   const formRef = useRef<HTMLFormElement>(null);
   const [, setLocation] = useLocation();
+  const { jobs, selectedJobId } = useJobStore();
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -45,7 +46,10 @@ export const NewJobForm = () => {
       }
       
       if (targetId) {
-        setLocation(`/job/${targetId}`);
+        const currentJob = selectedJobId ? jobs[selectedJobId] : null;
+        if (!currentJob || currentJob.status !== 'running') {
+          setLocation(`/job/${targetId}`);
+        }
       }
     }
   };
