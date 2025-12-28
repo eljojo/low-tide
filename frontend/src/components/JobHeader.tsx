@@ -83,6 +83,12 @@ const ImageContainer = styled('div')`
   flex-shrink: 0;
 `;
 
+const BottomRow = styled('div')`
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+`;
+
 interface JobHeaderProps {
   job: Job;
 }
@@ -100,8 +106,13 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
   const handleArchive = () => fetch(`/api/jobs/${job.id}/archive`, { method: 'POST' });
   const handleCleanup = () => {
     if (confirm('⚠️ Cleanup files? this will delete the files on disk')) {
+      // If we're in an e2e test, we might already be handled by the dialog listener,
+      // but this is standard browser confirm.
       fetch(`/api/jobs/${job.id}/cleanup`, { method: 'POST' });
     }
+  };
+  const handleCleanupNoConfirm = () => {
+      fetch(`/api/jobs/${job.id}/cleanup`, { method: 'POST' });
   };
   const files = job.files || [];
   const hasFiles = files.length > 0;
@@ -140,25 +151,25 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
           </MainTitleRow>
           <div className="lt-actions-row">
             {job.status === 'running' && (
-              <RunningIndicator className="lt-running-indicator">
+              <RunningIndicator className="lt-running-indicator lt-action-indicator">
                 <span className="lt-indicator-dot"></span>
                 Downloading
               </RunningIndicator>
             )}
             {job.original_url && (
-              <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.open(job.original_url, '_blank')}>
+              <button className="lt-btn lt-btn-secondary lt-btn-sm lt-action-btn" onClick={() => window.open(job.original_url, '_blank')}>
                 Source
               </button>
             )}
             {!job.archived && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
-              <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleArchive}>Archive</button>
+              <button className="lt-btn lt-btn-secondary lt-btn-sm lt-action-btn" onClick={handleArchive}>Archive</button>
             )}
             {hasFiles && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
-              <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCleanup}>Cleanup</button>
+              <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm lt-action-btn" onClick={handleCleanup}>Cleanup</button>
             )}
-            {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>}
+            {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm lt-action-btn" onClick={handleCancel}>Cancel</button>}
             {(job.status === 'failed' || job.status === 'cancelled' || job.status === 'cleaned') && (
-              <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleRetry}>
+              <button className="lt-btn lt-btn-secondary lt-btn-sm lt-action-btn" onClick={handleRetry}>
                 {job.status === 'cleaned' ? 'Download again' : 'Retry'}
               </button>
             )}
@@ -168,25 +179,25 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
           </div>
         </TitleGroup>
       </HeaderContent>
-      <div className="lt-row">
+      <BottomRow className="lt-row">
         {job.original_url && (
-          <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={() => window.open(job.original_url, '_blank')}>
+          <button className="lt-btn lt-btn-secondary lt-btn-sm lt-bottom-btn" onClick={() => window.open(job.original_url, '_blank')}>
             Source
           </button>
         )}
         {!job.archived && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
-          <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleArchive}>Archive</button>
+          <button className="lt-btn lt-btn-secondary lt-btn-sm lt-bottom-btn" onClick={handleArchive}>Archive</button>
         )}
         {hasFiles && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
-          <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCleanup}>Cleanup</button>
+          <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm lt-bottom-btn" onClick={handleCleanup}>Cleanup</button>
         )}
-        {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>}
+        {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm lt-bottom-btn" onClick={handleCancel}>Cancel</button>}
         {(job.status === 'failed' || job.status === 'cancelled' || job.status === 'cleaned') && (
-          <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleRetry}>
+          <button className="lt-btn lt-btn-secondary lt-btn-sm lt-bottom-btn" onClick={handleRetry}>
             {job.status === 'cleaned' ? 'Download again' : 'Retry'}
           </button>
         )}
-      </div>
+      </BottomRow>
     </PaneHeader>
   );
 };

@@ -248,8 +248,11 @@ body[data-theme='the-broadcaster'] .lt-actions-row {
    but for now we'll handle it via CSS positioning relative to the container if needed.
    Actually, let's adjust JobHeader.tsx to make it easier. */
 
-
-/* Hide the bottom button row in broadcaster theme */
+/* By default, we keep .lt-row visible for all themes except where we decide 
+   to move things. In broadcaster, we moved them to .lt-actions-row.
+   E2E tests look for buttons by text. Since we added .lt-action-btn and .lt-bottom-btn 
+   distinctions, we can just let either be clickable.
+*/
 body[data-theme='the-broadcaster'] .lt-row {
-  display: none;
+  display: none !important;
 }
