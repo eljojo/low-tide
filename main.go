@@ -124,23 +124,8 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// annotate has_files and counts
-		type jobWithFiles struct {
-			store.Job
-			HasFiles  bool `json:"has_files"`
-			FileCount int  `json:"file_count"`
-		}
-		out := make([]jobWithFiles, 0, len(jobsList))
-		for _, j := range jobsList {
-			fCount, err := store.CountJobArtifacts(s.DB, j.ID)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			out = append(out, jobWithFiles{Job: j, HasFiles: fCount > 0, FileCount: fCount})
-		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(out)
+		_ = json.NewEncoder(w).Encode(jobsList)
 	case http.MethodPost:
 		// Use FormValue so Go handles both urlencoded and multipart/form-data.
 		appID := r.FormValue("app_id")

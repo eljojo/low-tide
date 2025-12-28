@@ -291,15 +291,6 @@ func JobFileExists(db *sql.DB, jobID int64, path string) (bool, error) {
 	return cnt > 0, nil
 }
 
-func CountJobArtifacts(db *sql.DB, jobID int64) (fileCount int, err error) {
-	// Count files directly and derive directories from file parents.
-	row := db.QueryRow(`SELECT COUNT(1) FROM job_files WHERE job_id = ?`, jobID)
-	if err = row.Scan(&fileCount); err != nil {
-		return
-	}
-	return
-}
-
 func ListJobFiles(db *sql.DB, jobID int64) ([]JobFile, error) {
 	rows, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC`, jobID)
 	if err != nil {
