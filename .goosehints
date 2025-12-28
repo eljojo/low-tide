@@ -3,13 +3,6 @@ README.md and CONTRIBUTING.md are full of context about this project, they're go
 
 **Keep `README.md`, `CONTRIBUTING.md`, and all `.goosehints` up to date when major architectural/product direction changes happen** (not for small additions).
 
-# Meta
-`.goosehints` files are easy to miss; locate them explicitly via:
-
-```sh
-rg --files -g'.goosehints'
-```
-
 # Rules
 NEVER load up files from /static/ into your context, it only includes the bundled files from /frontend/.
 NEVER run the built project binary yourself (i.e `go run`), ask human to do it. BEFORE confirming a bugfix, ALWAYS do a `make build` to ensure things build correctly.

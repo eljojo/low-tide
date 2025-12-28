@@ -18,7 +18,6 @@ import (
 // FetchAndSaveTitle attempts to fetch the page at url, parse the title/og:title,
 // and update the job title in the DB.
 func (m *Manager) FetchAndSaveTitle(jobID int64, urlStr string) {
-	// Don't block the caller; this is meant to be run in a goroutine.
 	title, err := fetchTitle(urlStr)
 	if err != nil {
 		log.Printf("metadata: failed to fetch title for job %d (%s): %v", jobID, urlStr, err)
@@ -34,13 +33,12 @@ func (m *Manager) FetchAndSaveTitle(jobID int64, urlStr string) {
 		return
 	}
 
-	// Broadcast update so UI sees it
 	m.BroadcastJobSnapshot(jobID)
 }
 
+// fetches the "og:title" or <title> from a URL
 func fetchTitle(urlStr string) (string, error) {
 	log.Printf("metadata: fetching title for %s", urlStr)
-	// Create client with timeout and fake UA
 	client := &http.Client{
 		Timeout: 15 * time.Second,
 		Transport: &http.Transport{
@@ -52,7 +50,6 @@ func fetchTitle(urlStr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Fake UA to avoid 403s from sites like Tidal/YouTube
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
@@ -67,7 +64,7 @@ func fetchTitle(urlStr string) (string, error) {
 		return "", fmt.Errorf("status code %d", resp.StatusCode)
 	}
 
-	// Read first 512KB for parsing, to avoid huge downloads if it's not a normal page
+	// TODO: maybe Read first 512KB for parsing, to avoid huge downloads if it's not a normal page. TEST to make sure it works well.
 	return parseHTMLTitle(resp.Body), nil
 }
 
@@ -82,7 +79,7 @@ func parseHTMLTitle(r io.Reader) string {
 		switch tt {
 		case nethtml.ErrorToken:
 			// EOF or error, return whatever we have (likely <title>)
-			return cleanTitle(title)
+			return strings.TrimSpace(title)
 
 		case nethtml.StartTagToken, nethtml.SelfClosingTagToken:
 			t := z.Token()
@@ -118,13 +115,8 @@ func parseHTMLTitle(r io.Reader) string {
 			}
 			if t.Data == "head" {
 				// If we leave <head> and didn't find og:title, settle for <title>
-				return cleanTitle(title)
+				return strings.TrimSpace(title)
 			}
 		}
 	}
-}
-
-func cleanTitle(raw string) string {
-	// Already unescaped in parse loop if from <title>
-	return strings.TrimSpace(raw)
 }
