@@ -242,7 +242,7 @@ func (t *Terminal) GetDeltaHTML() map[int]string {
 	for idx, isDirty := range t.dirty {
 		if isDirty {
 			renderedLine := t.renderLine(idx)
-			if renderedLine != t.lastRendered[idx] {
+			if renderedLine != t.lastRendered[idx] { // Only include in delta if changed
 				delta[idx] = renderedLine
 				t.lastRendered[idx] = renderedLine
 			}

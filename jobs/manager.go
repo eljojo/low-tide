@@ -2,8 +2,8 @@
 package jobs
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -141,15 +141,18 @@ func (m *Manager) RecoverJobs() {
 }
 
 // filesPublisher emits job files snapshots at most every 100ms when marked dirty.
+// it uses a struct to track dirty jobs and only broadcasts when there are changes.
+// a sequence number is used in case changes happen while rendering/sending.
 func (m *Manager) filesPublisher() {
 	t := time.NewTicker(100 * time.Millisecond)
 	defer t.Stop()
-	for range t.C {
-		type workItem struct {
-			jobID int64
-			seq   uint64
-		}
 
+	type workItem struct {
+		jobID int64
+		seq   uint64
+	}
+
+	for range t.C {
 		m.jobChangesMu.Lock()
 		items := make([]workItem, 0, len(m.jobChanges))
 		for id, ch := range m.jobChanges {
@@ -166,22 +169,6 @@ func (m *Manager) filesPublisher() {
 		for _, it := range items {
 			m.BroadcastJobSnapshot(it.jobID)
 			m.markClean(it.jobID, it.seq)
-		}
-	}
-}
-
-// Similar to filesPublisher, but for terminal log deltas.
-func (m *Manager) logPublisher() {
-	t := time.NewTicker(50 * time.Millisecond)
-	defer t.Stop()
-	for range t.C {
-		m.mu.Lock()
-		rj := m.current
-		m.mu.Unlock()
-		if rj != nil {
-			if delta := rj.term.GetDeltaHTML(); len(delta) > 0 {
-				m.broadcastLogDelta(rj.jobID, delta)
-			}
 		}
 	}
 }
@@ -214,6 +201,33 @@ func (m *Manager) markClean(jobID int64, seq uint64) {
 	}
 }
 
+// Similar to filesPublisher, but for terminal log deltas.
+func (m *Manager) logPublisher() {
+	t := time.NewTicker(50 * time.Millisecond)
+	defer t.Stop()
+	for range t.C {
+		m.mu.Lock()
+		rj := m.current
+		m.mu.Unlock()
+		if rj != nil {
+			if delta := rj.term.GetDeltaHTML(); len(delta) > 0 {
+				m.broadcastLogDelta(rj.jobID, delta)
+			}
+		}
+	}
+}
+
+func (m *Manager) broadcastLogDelta(jobID int64, lines map[int]string) {
+	ev := JobLogEvent{
+		Type:  "job_log",
+		JobID: jobID,
+		Lines: lines,
+		When:  time.Now(),
+	}
+	m.BroadcastState(ev)
+}
+
+// TODO: move this to a helper
 func (m *Manager) toRel(abs string) string {
 	if abs == "" {
 		return ""
@@ -232,6 +246,7 @@ func (m *Manager) toRel(abs string) string {
 	return rel
 }
 
+// TODO review this behaviour, are we adding excessive watches? or leaking them?
 func addRecursiveWatch(w *fsnotify.Watcher, root string) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -263,6 +278,7 @@ func snapshotFiles(root string) map[string]struct{} {
 }
 
 // watchLoop handles filesystem events and updates the DB immediately.
+// TODO: would we benefit from extracting this to a separate file, e.g. file_watcher.go?
 func (m *Manager) watchLoop() {
 	for {
 		select {
@@ -276,6 +292,7 @@ func (m *Manager) watchLoop() {
 			if ev.Op&(fsnotify.Create|fsnotify.Write) != 0 {
 				m.handleFileEvent(ev.Name)
 			}
+			// TODO: would we benefit from a specific handler for rename? or is it better to treat as remove since it'll show up as create or write anyway?
 			if ev.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
 				m.handleRemoveEvent(ev.Name)
 			}
@@ -666,16 +683,6 @@ func (m *Manager) streamRaw(ctx context.Context, jobID int64, r io.Reader, rj *r
 	}
 }
 
-func (m *Manager) broadcastLogDelta(jobID int64, lines map[int]string) {
-	ev := JobLogEvent{
-		Type:  "job_log",
-		JobID: jobID,
-		Lines: lines,
-		When:  time.Now(),
-	}
-	m.BroadcastState(ev)
-}
-
 func (m *Manager) SubscribeState() chan []byte {
 	ch := make(chan []byte, 64)
 	m.stateSubsMutex.Lock()
@@ -693,7 +700,7 @@ func (m *Manager) UnsubscribeState(ch chan []byte) {
 	}
 }
 
-func (m *Manager) broadcastState(v interface{}) {
+func (m *Manager) BroadcastState(v interface{}) {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return
@@ -710,10 +717,6 @@ func (m *Manager) broadcastState(v interface{}) {
 		default:
 		}
 	}
-}
-
-func (m *Manager) BroadcastState(v interface{}) {
-	m.broadcastState(v)
 }
 
 func (m *Manager) BroadcastJobSnapshot(jobID int64) {
