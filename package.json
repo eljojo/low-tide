@@ -4,7 +4,8 @@
   "description": "Low Tide =========",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "repository": {
     "type": "git",
@@ -18,8 +19,16 @@
   },
   "homepage": "https://github.com/eljojo/low-tide#readme",
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@preact/preset-vite": "^2.10.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/preact": "^3.2.4",
     "esbuild": "^0.27.2",
-    "typescript": "^5.9.3"
+    "jsdom": "^27.4.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
   },
   "dependencies": {
     "goober": "^2.1.18",

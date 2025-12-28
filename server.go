@@ -86,6 +86,9 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		if jobsList == nil {
+			jobsList = []store.Job{}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(jobsList)
 	case http.MethodPost:
