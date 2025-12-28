@@ -1,4 +1,7 @@
-import { useJobStore } from '../store';
+import { useEffect } from 'preact/hooks';
+import { useLocation } from 'wouter';
+import { useJobStore, logBuffers } from '../store';
+import { fetchJobDetails, fetchJobLogs } from '../api';
 import { TerminalView } from './TerminalView';
 import { styled } from 'goober';
 import { FileManifest } from './FileManifest';
@@ -33,11 +36,30 @@ const LogView = styled('div')<{ collapsed: boolean }>`
   margin-top: ${props => props.collapsed ? '0' : '1rem'};
 `;
 
-export const SelectedJobPane = () => {
-  const { jobs, selectedJobId, consoleCollapsed, toggleConsole } = useJobStore();
-  const job = selectedJobId !== null ? jobs[selectedJobId] : null;
+export const SelectedJobPane = ({ id, showLogs }: { id: string, showLogs?: boolean }) => {
+  const [, setLocation] = useLocation();
+  const { jobs, selectJob, setConsoleCollapsed } = useJobStore();
+  const jobId = parseInt(id, 10);
+  const job = jobs[jobId];
+
+  useEffect(() => {
+    if (!isNaN(jobId)) {
+        selectJob(jobId);
+        setConsoleCollapsed(!showLogs);
+
+        // Ensure data is fetched
+        fetchJobDetails(jobId);
+        if (!logBuffers[jobId] || (job && job.status === 'running')) {
+            fetchJobLogs(jobId);
+        }
+    }
+  }, [jobId, showLogs, selectJob, setConsoleCollapsed]);
 
   if (!job) return null;
+
+  const toggleLogs = () => {
+    setLocation(showLogs ? `/job/${jobId}` : `/job/${jobId}/logs`);
+  };
 
   return (
     <LayoutWrapper className="lt-card lt-selected-job-pane">
@@ -49,12 +71,12 @@ export const SelectedJobPane = () => {
           <LogsHeader className="lt-flex-between">
             <h3 className="lt-title-section" style={{ border: 'none' }}>LOGS</h3>
             {job.status !== 'failed' && (
-              <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={toggleConsole}>
-                {consoleCollapsed ? 'SHOW LOGS' : 'CLOSE LOGS'}
+              <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={toggleLogs}>
+                {showLogs ? 'CLOSE LOGS' : 'SHOW LOGS'}
               </button>
             )}
           </LogsHeader>
-          <LogView collapsed={consoleCollapsed} className="lt-log-view">
+          <LogView collapsed={!showLogs} className="lt-log-view">
              <TerminalView jobId={job.id} />
           </LogView>
         </LogsSection>

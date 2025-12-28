@@ -6,16 +6,10 @@ export async function loadInitialData() {
     const res = await fetch('/api/jobs');
     const jobs: Job[] = await res.json();
     useJobStore.getState().setJobs(jobs);
-
-    const state = useJobStore.getState();
-    if (state.selectedJobId === null) { // due to no selection from URL
-      const runningJob = jobs.find(j => j.status === 'running');
-      if (runningJob) {
-        state.selectJob(runningJob.id);
-      }
-    }
+    return jobs;
   } catch (e) {
     console.error('Initial load failed', e);
+    return [];
   }
 }
 

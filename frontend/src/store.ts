@@ -33,13 +33,6 @@ export const useJobStore = create<AppState>((set) => ({
     }
 
     const job = state.jobs[id];
-    // Fetch logs if they haven't been loaded yet,
-    // or if the job is running (meaning logs are constantly changing).
-    if (!logBuffers[id] || (job && job.status === 'running')) {
-        // Need to trigger fetch
-        setTimeout(() => fetchJobLogs(id), 0);
-    }
-
     let consoleCollapsed = state.consoleCollapsed;
     if (job) {
       consoleCollapsed = job.status === 'success';
@@ -66,18 +59,3 @@ export const useJobStore = create<AppState>((set) => ({
   toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
   setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed }),
 }));
-
-// Sync URL state
-useJobStore.subscribe((state) => {
-  let newPath = '/';
-  if (state.selectedJobId !== null) {
-    newPath = `/job/${state.selectedJobId}`;
-    if (!state.consoleCollapsed) {
-      newPath += '/logs';
-    }
-  }
-
-  if (window.location.pathname !== newPath) {
-    window.history.replaceState({}, '', newPath);
-  }
-});

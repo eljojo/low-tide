@@ -1,6 +1,6 @@
+import { useLocation } from 'wouter';
 import { Job } from '../types';
 import { useJobStore } from '../store';
-import { fetchJobDetails } from '../api';
 import { styled } from 'goober';
 import { ListContainer, ListHeader, ListScrollArea } from './common/ListView';
 import { Item } from './common/Item';
@@ -55,13 +55,12 @@ const TitleText = styled('div')`
 `;
 
 const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
+  const [, setLocation] = useLocation();
   const handleClick = () => {
-    const state = useJobStore.getState();
     if (selected) {
-      state.selectJob(null);
+      setLocation('/');
     } else {
-      fetchJobDetails(job.id);
-      state.selectJob(job.id);
+      setLocation(`/job/${job.id}`);
     }
   };
 

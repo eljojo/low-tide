@@ -71,7 +71,7 @@ test.describe('Low Tide E2E', () => {
     console.log(`Created Job ID: ${jobId}`);
 
     // --- 1.5. Verify URL after queueing ---
-    await expect(page).toHaveURL(new RegExp(`/job/${jobId}$`));
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}(/logs)?$`));
 
     // --- 2. Wait for job to appear and succeed ---
     const jobItem = page.locator('.lt-job-item', { hasText: customTitle });

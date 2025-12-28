@@ -26,6 +26,7 @@
   "dependencies": {
     "goober": "^2.1.18",
     "preact": "^10.28.1",
+    "wouter": "^3.9.0",
     "zustand": "^5.0.9"
   }
 }
