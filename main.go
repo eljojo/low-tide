@@ -86,8 +86,6 @@ func main() {
 	mux.Handle("/static/", http.FileServer(http.FS(assets)))
 	mux.HandleFunc("/api/jobs", srv.handleJobs)
 
-
-
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
 	mux.HandleFunc("/ws/state", srv.handleStateWS)
 
@@ -192,8 +190,6 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
-
-
 
 func (s *Server) handleJobAction(w http.ResponseWriter, r *http.Request) {
 	// /api/jobs/{id}/{action} or /api/jobs/{id}/files/{fileid}
