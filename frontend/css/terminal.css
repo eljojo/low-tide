@@ -3,7 +3,7 @@
    ========================================================================== */
 
 .lt-terminal {
-  font-family: var(--font-mono);
+  font-family: monospace; /* don't use var(--font-mono); */
   white-space: pre-wrap;
 }
 

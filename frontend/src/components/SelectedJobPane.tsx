@@ -54,7 +54,7 @@ export const SelectedJobPane = () => {
               </button>
             )}
           </LogsHeader>
-          <LogView collapsed={consoleCollapsed} className="lt-mono lt-log-view">
+          <LogView collapsed={consoleCollapsed} className="lt-log-view">
              <TerminalView jobId={job.id} />
           </LogView>
         </LogsSection>
