@@ -3,6 +3,7 @@ import { useJobStore } from '../store';
 import { fetchJobDetails } from '../api';
 import { styled } from 'goober';
 import { ListContainer, ListHeader, ListScrollArea } from './common/ListView';
+import { Item } from './common/Item';
 
 const LayoutWrapper = styled(ListContainer)`
   grid-column: 2;
@@ -13,20 +14,7 @@ const Header = styled(ListHeader)``;
 
 const SubTitle = styled('h3')``;
 
-const Item = styled('div')<{ selected?: boolean }>`
-  padding: 1rem 1.25rem;
-  border-radius: var(--border-radius);
-  border: 1px solid ${props => props.selected ? 'var(--accent2)' : 'transparent'};
-  margin-bottom: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: ${props => props.selected ? 'var(--card-bg)' : 'rgba(0,0,0,0.015)'};
-  ${props => props.selected && 'box-shadow: 0 8px 24px rgba(0,0,0,0.04);'}
 
-  &:hover {
-    background: ${props => props.selected ? 'var(--card-bg)' : 'rgba(0,0,0,0.035)'};
-  }
-`;
 
 const TitleContainer = styled('div')`
   display: flex;
