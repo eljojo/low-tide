@@ -91,8 +91,8 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 		Cfg:        cfg,
 		Watcher:    w,
 		Queue:      make(chan int64, 128),
-		stateSubs:  make(map[chan []byte]struct{}),
-		jobChanges: make(map[int64]*jobChange),
+		stateSubs:  make(map[chan []byte]struct{}), // used for websocket subscribers
+		jobChanges: make(map[int64]*jobChange),     // used to keep track of dirty jobs
 		watchRoot:  watchRoot,
 	}
 
@@ -104,7 +104,6 @@ func NewManager(db *sql.DB, cfg *config.Config) (*Manager, error) {
 	return m, nil
 }
 
-// filesPublisher emits job files snapshots at most every 100ms when marked dirty.
 // worker processes queued job IDs sequentially.
 func (m *Manager) worker() {
 	for jobID := range m.Queue {
@@ -115,11 +114,11 @@ func (m *Manager) worker() {
 	}
 }
 
+// runs on startup
 func (m *Manager) RecoverJobs() {
-	// 1. Mark 'running' jobs as 'cancelled'
 	running, err := store.ListJobsByStatus(m.DB, store.StatusRunning)
 	if err != nil {
-		log.Printf("recovery: failed to list running jobs: %v", err)
+		log.Fatalf("recovery: failed to list running jobs: %v", err)
 	} else {
 		for _, j := range running {
 			log.Printf("recovery: marking running job %d as cancelled", j.ID)
@@ -129,10 +128,9 @@ func (m *Manager) RecoverJobs() {
 		}
 	}
 
-	// 2. Add 'queued' jobs back to the in-memory queue
 	queued, err := store.ListJobsByStatus(m.DB, store.StatusQueued)
 	if err != nil {
-		log.Printf("recovery: failed to list queued jobs: %v", err)
+		log.Fatalf("recovery: failed to list queued jobs: %v", err)
 	} else {
 		for _, j := range queued {
 			log.Printf("recovery: re-queuing job %d", j.ID)
@@ -141,7 +139,7 @@ func (m *Manager) RecoverJobs() {
 	}
 }
 
-
+// filesPublisher emits job files snapshots at most every 100ms when marked dirty.
 func (m *Manager) filesPublisher() {
 	t := time.NewTicker(100 * time.Millisecond)
 	defer t.Stop()
@@ -171,6 +169,7 @@ func (m *Manager) filesPublisher() {
 	}
 }
 
+// Similar to filesPublisher, but for terminal log deltas.
 func (m *Manager) logPublisher() {
 	t := time.NewTicker(50 * time.Millisecond)
 	defer t.Stop()
