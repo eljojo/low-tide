@@ -41,7 +41,7 @@ Low Tide is configured via a YAML file; see [`config/config.yaml`](config/config
 ```yaml
 listen_addr: ":8080"
 db_path: "/var/lib/lowtide/lowtide.db"
-watch_dir: "/var/lib/lowtide/downloads"
+downloads_dir: "/var/lib/lowtide/downloads"
 apps:
   - id: "yt-dlp"
     name: "yt-dlp"
@@ -75,10 +75,10 @@ Low Tide is intentionally opinionated. A few behaviors are important to understa
 - **No auth, no multi-user permissions**: treat this as **LAN-only** or put it behind a reverse proxy with auth.
 - **Sequential execution**: jobs are processed **one-at-a-time** by design.
 - **Single URL per job**: pasting multiple URLs creates multiple jobs (not a multi-step workflow).
-- **Artifact tracking is `watch_dir`-scoped**:
-  - Only files written **under `watch_dir`** can be detected/downloaded/cleaned.
-  - Files that existed before a job starts are treated as baseline and won’t be attributed to that job.
-  - Since only one job runs at a time, file attribution is based on “the currently running job”.
+- **Artifact tracking is `downloads_dir`-scoped**:
+  - Only files written **under `downloads_dir`** can be detected/downloaded/cleaned.
+  - Each job runs in its own subfolder (named by job ID) within the `downloads_dir`.
+  - Since each job has a dedicated folder, file attribution is isolated and cleanup is safe.
 - The server executes configured commands; treat config changes as privileged.
 
 ---

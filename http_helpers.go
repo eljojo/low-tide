@@ -75,13 +75,13 @@ func splitURLs(s string) []string {
 	return out
 }
 
-// toRelPath trims the watch root prefix and returns a leading slash path.
+// toRelPath trims the downloads root prefix and returns a leading slash path.
 func toRelPath(root, abs string) string {
 	rel, err := filepath.Rel(root, abs)
 	if err != nil {
 		return ""
 	}
-	// If the path is outside the watch root, don't leak it.
+	// If the path is outside the downloads root, don't leak it.
 	if rel == "." || strings.HasPrefix(rel, "..") {
 		return ""
 	}

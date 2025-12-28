@@ -65,8 +65,12 @@ func (m *Manager) handleFileEvent(path string) {
 		return
 	}
 
-	// Skip files that were already present at job start
-	if m.isInBaseline(absPath) {
+	m.mu.Lock()
+	cur := m.current
+	m.mu.Unlock()
+
+	// Only handle files that are within the current job's directory.
+	if cur == nil || !strings.HasPrefix(absPath, cur.jobDir) {
 		return
 	}
 
@@ -98,16 +102,16 @@ func (m *Manager) handleRemoveEvent(path string) {
 	m.markDirty(jobID)
 }
 
-// toRel converts an absolute path to a path relative to the watch root.
+// toRel converts an absolute path to a path relative to the downloads root.
 func (m *Manager) toRel(abs string) string {
 	if abs == "" {
 		return ""
 	}
-	rel, err := filepath.Rel(m.watchRoot, abs)
+	rel, err := filepath.Rel(m.downloadsRoot, abs)
 	if err != nil {
 		return ""
 	}
-	// If the path is outside the watch root, don't leak it.
+	// If the path is outside the downloads root, don't leak it.
 	if rel == "." || strings.HasPrefix(rel, "..") {
 		return ""
 	}
@@ -131,20 +135,16 @@ func addRecursiveWatch(w *fsnotify.Watcher, root string) error {
 	})
 }
 
-// snapshotFiles captures the existing files before a job starts (aka the baseline).
-func snapshotFiles(root string) map[string]struct{} {
-	out := make(map[string]struct{})
-	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+func removeRecursiveWatch(w *fsnotify.Watcher, root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if info.IsDir() {
-			return nil
+			_ = w.Remove(path)
 		}
-		out[path] = struct{}{}
 		return nil
 	})
-	return out
 }
 
 func (m *Manager) scanSiblings(jobID int64, dir string) {
@@ -153,6 +153,11 @@ func (m *Manager) scanSiblings(jobID int64, dir string) {
 	m.mu.Unlock()
 
 	if cur == nil || cur.jobID != jobID {
+		return
+	}
+
+	// Only scan if within current job's directory
+	if !strings.HasPrefix(dir, cur.jobDir) {
 		return
 	}
 
@@ -166,11 +171,6 @@ func (m *Manager) scanSiblings(jobID int64, dir string) {
 			continue
 		}
 		fullPath := filepath.Join(dir, e.Name())
-		if cur.baseline != nil {
-			if _, ok := cur.baseline[fullPath]; ok { // skip if in baseline
-				continue
-			}
-		}
 		info, err := e.Info()
 		if err != nil {
 			continue

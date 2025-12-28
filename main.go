@@ -11,7 +11,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"low-tide/config"
-	"low-tide/internal/cleanup"
 	"low-tide/jobs"
 	"low-tide/store"
 )
@@ -29,11 +28,6 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	// Clean up empty folders in the watch directory before starting the server
-	if err := cleanup.DeleteEmptyFolders(cfg.WatchDir); err != nil {
-		log.Printf("error cleaning up empty folders: %v", err)
-	}
-
 	db, err := sql.Open("sqlite3", cfg.DBPath+"?_fk=1")
 	if err != nil {
 		log.Fatalf("open db: %v", err)
@@ -44,10 +38,10 @@ func main() {
 		log.Fatalf("init db: %v", err)
 	}
 
-	// Normalize watch dir
-	cfg.WatchDir, err = filepath.Abs(cfg.WatchDir)
+	// Normalize downloads dir
+	cfg.DownloadsDir, err = filepath.Abs(cfg.DownloadsDir)
 	if err != nil {
-		log.Fatalf("abs watch_dir: %v", err)
+		log.Fatalf("abs downloads_dir: %v", err)
 	}
 
 	mgr, err := jobs.NewManager(db, cfg)
