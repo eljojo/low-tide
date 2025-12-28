@@ -64,14 +64,17 @@ export function connectWebSocket() {
             // If the current job finished, check if we should move to another one
             const otherRunningJob = Object.values(state.jobs).find(j => j.id !== job.id && j.status === 'running');
             if (otherRunningJob) {
-              navigate(`/job/${otherRunningJob.id}`);
+              navigate(`/job/${otherRunningJob.id}/logs`);
             } else {
               // No other job running yet, unpin so the next one that starts is auto-selected
               state.setIsPinned(false);
             }
+          } else if (oldStatus === 'queued' && job.status === 'running') {
+            // If the currently selected job just started, show logs
+            state.setConsoleCollapsed(false);
           }
         } else if (job.status === 'running' && !state.isPinned) {
-          navigate(`/job/${job.id}`);
+          navigate(`/job/${job.id}/logs`);
         }
       } else if (msg.type === 'job_log') {
         window.dispatchEvent(new CustomEvent('job-log-stream', { detail: msg }));

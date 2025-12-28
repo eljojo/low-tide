@@ -60,7 +60,8 @@ const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
     if (selected) {
       setLocation('/');
     } else {
-      setLocation(`/job/${job.id}`);
+      const path = job.status === 'running' ? `/job/${job.id}/logs` : `/job/${job.id}`;
+      setLocation(path);
     }
   };
 
