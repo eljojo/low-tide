@@ -71,14 +71,17 @@ func main() {
 	}
 	mgr.RecoverJobs()
 
-
 	srv := &Server{DB: db, Cfg: cfg, Mgr: mgr}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.handleIndex)
 	mux.Handle("/static/", http.FileServer(http.FS(assets)))
 	mux.HandleFunc("/api/jobs", srv.handleJobs)
+
+	// TODO: is anything calling this endpoint? if not, remove it
+	// if removing it, also check for unnecessary code like store.ArchiveFinishedJobs
 	mux.HandleFunc("/api/jobs/clear", srv.handleClearJobs)
+
 	mux.HandleFunc("/api/jobs/", srv.handleJobAction)
 	mux.HandleFunc("/ws/state", srv.handleStateWS)
 

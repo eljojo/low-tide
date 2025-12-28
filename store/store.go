@@ -4,28 +4,10 @@ package store
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 )
-
-func depth(p string) int {
-	p = filepath.Clean(p)
-	if p == string(filepath.Separator) {
-		return 0
-	}
-	return len(strings.Split(p, string(filepath.Separator)))
-}
-
-func isSubpath(parent, child string) bool {
-	rel, err := filepath.Rel(parent, child)
-	if err != nil {
-		return false
-	}
-	return rel != "." && !strings.HasPrefix(rel, "..")
-}
 
 // JobStatus represents the lifecycle state of a job.
 type JobStatus string
@@ -98,53 +80,13 @@ func Init(db *sql.DB) error {
 			return err
 		}
 	}
-	// Ensure columns exist for older DBs
-	if err := ensureColumn(db, "jobs", "original_url", "TEXT"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "jobs", "title", "TEXT"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "jobs", "logs", "TEXT"); err != nil {
-		return err
-	}
 	return nil
-}
-
-func ensureColumn(db *sql.DB, table, column, colType string) error {
-	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name string
-		var ctype string
-		var notnull int
-		var dfltValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
-			return err
-		}
-		if name == column {
-			return nil
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	_, err = db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, colType))
-	return err
 }
 
 func InsertJob(db *sql.DB, appID string, url string, createdAt time.Time) (int64, error) {
 	if strings.TrimSpace(url) == "" {
 		return 0, errors.New("no url")
 	}
-	// Compute initial title from URL (host + path) so jobs show meaningful titles
 	title := url
 	if u, err := parseURLTitle(url); err == nil {
 		title = u
@@ -161,12 +103,7 @@ func parseURLTitle(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Host + path
-	p := r.Host + r.Path
-	if p == "" {
-		return r.Path, nil
-	}
-	// Trim trailing slash
+	p := r.Host + r.Path + r.RawQuery
 	p = strings.TrimSuffix(p, "/")
 	return p, nil
 }
@@ -189,6 +126,7 @@ func scanJob(row interface {
 	return &j, nil
 }
 
+// TODO: merge into a version of scanJob that doesn't include logs for listing jobs
 func scanJobShort(row interface {
 	Scan(dest ...interface{}) error
 }) (*Job, error) {
@@ -210,6 +148,7 @@ func GetJob(db *sql.DB, id int64) (*Job, error) {
 	return scanJob(row)
 }
 
+// TODO: merge with ListJobs somehow, to avoid code duplication
 func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
 	rows, err := db.Query(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE status = ?`, string(status))
 	if err != nil {
@@ -226,7 +165,6 @@ func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
 	}
 	return out, rows.Err()
 }
-
 
 func ListJobs(db *sql.DB, limit int) ([]Job, error) {
 	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
@@ -308,6 +246,7 @@ func ResetJobForRetry(db *sql.DB, id int64) error {
 	return tx.Commit()
 }
 
+// TODO: ArchiveFinishedJobs may not be necessary, look into main.go
 func ArchiveFinishedJobs(db *sql.DB) error {
 	_, err := db.Exec(`UPDATE jobs SET archived = 1 WHERE archived = 0 AND status IN ('success','failed')`)
 	return err
@@ -343,49 +282,6 @@ func GetJobFileByID(db *sql.DB, id int64) (*JobFile, error) {
 	return &f, nil
 }
 
-func GetJobFileByPath(db *sql.DB, path string) (*JobFile, error) {
-	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE path = ? LIMIT 1`, path)
-	var f JobFile
-	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
-		return nil, err
-	}
-	return &f, nil
-}
-
-// GetJobFileByPathForJob finds a job_file record by job_id+path. Use this when
-// you know which job the file belongs to to avoid cross-job collisions.
-func GetJobFileByPathForJob(db *sql.DB, jobID int64, path string) (*JobFile, error) {
-	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? AND path = ? LIMIT 1`, jobID, path)
-	var f JobFile
-	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
-		return nil, err
-	}
-	return &f, nil
-}
-
-func UpdateJobFileSize(db *sql.DB, jobID int64, path string, size int64, createdAt time.Time) error {
-	_, err := db.Exec(`UPDATE job_files SET size_bytes = ?, created_at = ? WHERE job_id = ? AND path = ?`, size, createdAt, jobID, path)
-	return err
-}
-
-func ListJobFilesByPath(db *sql.DB, path string) ([]JobFile, error) {
-	rows, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE path = ?`, path)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []JobFile
-	for rows.Next() {
-		var f JobFile
-		if err := rows.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, f)
-	}
-	return out, rows.Err()
-}
-
-// JobFileExists checks whether a file path already exists for the job.
 func JobFileExists(db *sql.DB, jobID int64, path string) (bool, error) {
 	row := db.QueryRow(`SELECT COUNT(1) FROM job_files WHERE job_id = ? AND path = ?`, jobID, path)
 	var cnt int
@@ -404,15 +300,6 @@ func CountJobArtifacts(db *sql.DB, jobID int64) (fileCount int, err error) {
 	return
 }
 
-func GetPrimaryJobFile(db *sql.DB, jobID int64) (*JobFile, error) {
-	row := db.QueryRow(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC LIMIT 1`, jobID)
-	var f JobFile
-	if err := row.Scan(&f.ID, &f.JobID, &f.Path, &f.SizeBytes, &f.CreatedAt); err != nil {
-		return nil, err
-	}
-	return &f, nil
-}
-
 func ListJobFiles(db *sql.DB, jobID int64) ([]JobFile, error) {
 	rows, err := db.Query(`SELECT id, job_id, path, size_bytes, created_at FROM job_files WHERE job_id = ? ORDER BY created_at ASC`, jobID)
 	if err != nil {
@@ -428,22 +315,4 @@ func ListJobFiles(db *sql.DB, jobID int64) ([]JobFile, error) {
 		files = append(files, f)
 	}
 	return files, rows.Err()
-}
-
-func UnarchiveJob(db *sql.DB, id int64) error {
-	_, err := db.Exec(`UPDATE jobs SET archived = 0 WHERE id = ?`, id)
-	return err
-}
-
-func DeleteJobFilesAndDirs(db *sql.DB, jobID int64) error {
-	_, err := db.Exec(`DELETE FROM job_files WHERE job_id = ?`, jobID)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func DeleteJob(db *sql.DB, jobID int64) error {
-	_, err := db.Exec(`DELETE FROM jobs WHERE id = ?`, jobID)
-	return err
 }
