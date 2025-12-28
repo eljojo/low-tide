@@ -104,3 +104,152 @@ body[data-theme='the-broadcaster'] .lt-indicator-dot {
   box-shadow: none;
   border-radius: 0 !important;
 }
+
+/* Running indicator positioning - move to avoid image overlap */
+body[data-theme='the-broadcaster'] .lt-running-indicator {
+  background: var(--fg);
+  color: var(--card-bg);
+  padding: 0.4rem 0.8rem;
+  border: 3px solid var(--fg);
+  box-shadow: 4px 4px 0px var(--fg);
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  z-index: 20;
+  top: 0rem;
+  right: 1rem;
+}
+
+/* Move Downloading indicator next to buttons */
+body[data-theme='the-broadcaster'] .lt-running-indicator {
+  position: static !important;
+  display: inline-flex !important;
+  margin-right: 0.5rem;
+  box-shadow: 3px 3px 0px var(--fg) !important;
+  border: 3px solid var(--fg) !important;
+  padding: 0.3rem 0.7rem !important;
+  height: auto;
+}
+
+/* PAPER CLIP EFFECT */
+body[data-theme='the-broadcaster'] .lt-job-image-container::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 30px;
+  width: 16px;
+  height: 40px;
+  border: 2px solid #777;
+  border-radius: 10px;
+  background: transparent;
+  z-index: 10;
+  box-shadow: 
+    inset 1px 1px 0 rgba(255,255,255,0.8),
+    1px 1px 2px rgba(0,0,0,0.3);
+  pointer-events: none;
+  transform: rotate(-5deg);
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image-container::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 34px;
+  width: 8px;
+  height: 20px;
+  border-right: 2px solid #777;
+  z-index: 10;
+  border-radius: 0 0 5px 0;
+}
+
+/* BROADCASTER THEME: Larger image in top-right, positioned to avoid running indicator */
+body[data-theme='the-broadcaster'] .lt-job-image-container {
+  position: absolute;
+  top: -2.3rem;
+  right: 1rem;
+  width: 210px;
+  height: 140px;
+  z-index: 25;
+}
+
+/* When running indicator is present, move image down to avoid overlap */
+body[data-theme='the-broadcaster'] .lt-job-image-container {
+  top: -2.3rem;
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image {
+  width: 100% !important;
+  height: 100% !important;
+  border: 3px solid var(--fg) !important;
+  box-shadow: 4px 4px 0px var(--fg) !important;
+  border-radius: 0 !important;
+  transform: rotate(2deg);
+  transition: transform 0.2s ease;
+  object-fit: cover;
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image:hover {
+  transform: rotate(0deg) scale(1.05);
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image-placeholder {
+  width: 100% !important;
+  height: 100% !important;
+  border: 3px solid var(--fg) !important;
+  box-shadow: 4px 4px 0px var(--fg) !important;
+  border-radius: 0 !important;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--card-bg),
+    var(--card-bg) 8px,
+    #f0f0f0 8px,
+    #f0f0f0 16px
+  );
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transform: rotate(2deg);
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure title banner extends properly in broadcaster theme */
+body[data-theme='the-broadcaster'] .pane-title-group h2 {
+  /* Reset any margin issues that might be affecting banner positioning */
+  margin: -2rem -2rem 1rem -2rem !important;
+  padding: 0.8rem 2rem !important;
+  background: var(--fg) !important;
+  color: var(--card-bg) !important;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  border-bottom: 4px solid var(--fg);
+  line-height: 1;
+}
+
+/* Fix button layout and ensure proper card positioning for broadcaster */
+body[data-theme='the-broadcaster'] .lt-card {
+  position: relative; /* Ensure absolute positioned images are contained */
+  min-height: 200px; /* Give enough space for absolutely positioned image */
+}
+
+/* BUTTON POSITIONING: Show buttons under title, hide bottom buttons */
+body[data-theme='the-broadcaster'] .lt-actions-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Ensure indicator is inside actions row if we move it there in JSX, 
+   but for now we'll handle it via CSS positioning relative to the container if needed.
+   Actually, let's adjust JobHeader.tsx to make it easier. */
+
+
+/* Hide the bottom button row in broadcaster theme */
+body[data-theme='the-broadcaster'] .lt-row {
+  display: none;
+}

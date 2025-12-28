@@ -8,6 +8,8 @@ The "Mini Framework" serves as the contract between Themes and Views.
 - **Themes**: Implement the visual look by overriding variables and, if absolutely necessary, targeting `.lt-*` classes. Themes should NOT target raw HTML elements (like `button`) unless setting a global default that applies everywhere.
 - **Views (Components)**: Are implemented against the Framework. They use `.lt-*` classes for standard styling and `goober` for semantic, logic-driven styling.
 
+Think of it like a CSS Zen garden: the framework provides the structure, themes provide the skin, and views provide the content.
+
 ## 2. CSS Architecture
 - **Global Styles**: Located in `css/main.css`. This is the source of truth.
 - **Prefix**: All framework classes are prefixed with `.lt-` (e.g., `.lt-btn`, `.lt-card`, `.lt-input`).

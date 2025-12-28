@@ -368,3 +368,233 @@ func TestIntegration_PathSafetyAndWeirdURLs(t *testing.T) {
 		t.Fatalf("expected 400 for out-of-bounds path, got %d", dlResp.StatusCode)
 	}
 }
+
+func TestIntegration_JobImages(t *testing.T) {
+	// Setup temporary workspace
+	tmpDir, err := os.MkdirTemp("", "lowtide-imagetest-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	downloadsDir := filepath.Join(tmpDir, "downloads")
+	err = os.MkdirAll(downloadsDir, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test image (simple PNG)
+	testImageData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG header
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk start
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // image specs
+		0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, // IDAT chunk
+		0x54, 0x08, 0x99, 0x01, 0x01, 0x01, 0x00, 0x00,
+		0xFE, 0xFF, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01,
+		0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00, 0x00, // IEND chunk
+		0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+	}
+
+	// Setup mock server that serves HTML with OpenGraph tags
+	var mockServerURL string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/test-page":
+			// Serve HTML page with OpenGraph tags
+			html := `<!DOCTYPE html>
+<html>
+<head>
+    <meta property="og:title" content="Test Page Title" />
+    <meta property="og:image" content="` + mockServerURL + `/test-image.png" />
+</head>
+<body><h1>Test Page</h1></body>
+</html>`
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte(html))
+		case "/test-image.png":
+			// Serve test image
+			w.Header().Set("Content-Type", "image/png")
+			w.Write(testImageData)
+		case "/no-image-page":
+			// Page without og:image
+			html := `<!DOCTYPE html>
+<html>
+<head>
+    <meta property="og:title" content="No Image Page" />
+</head>
+<body><h1>No Image</h1></body>
+</html>`
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte(html))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer mockServer.Close()
+	mockServerURL = mockServer.URL
+
+	// Setup Low Tide Server
+	db, err := sql.Open("sqlite3", dbPath+"?_fk=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := store.Init(db); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		DownloadsDir: downloadsDir,
+		Apps: []config.AppConfig{
+			{ID: "test", Name: "Test App", Command: "echo 'test'"},
+		},
+	}
+
+	mgr, err := jobs.NewManager(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := NewServer(db, cfg, mgr)
+	ts := httptest.NewServer(server.Routes())
+	defer ts.Close()
+
+	t.Run("Job with OpenGraph image", func(t *testing.T) {
+		// Create job with page that has og:image
+		testURL := mockServer.URL + "/test-page"
+		resp, err := http.PostForm(ts.URL+"/api/jobs", url.Values{
+			"app_id": {"test"},
+			"urls":   {testURL},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+
+		var result struct {
+			IDs []int64 `json:"ids"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatal(err)
+		}
+
+		if len(result.IDs) != 1 {
+			t.Fatalf("expected 1 job, got %d", len(result.IDs))
+		}
+
+		jobID := result.IDs[0]
+
+		// Wait for metadata processing
+		time.Sleep(2 * time.Second)
+
+		// Check job has image_path set
+		job, err := store.GetJob(db, jobID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if job.ImagePath == nil {
+			t.Fatal("expected job to have image_path set")
+		}
+
+		// Check image file exists
+		thumbnailsDir := filepath.Join(downloadsDir, "thumbnails")
+		expectedImagePath := filepath.Join(thumbnailsDir, fmt.Sprintf("%d.png", jobID))
+		if _, err := os.Stat(expectedImagePath); os.IsNotExist(err) {
+			t.Fatal("expected image file to exist")
+		}
+
+		// Test thumbnail endpoint - now uses job ID instead of filename
+		thumbResp, err := http.Get(fmt.Sprintf("%s/thumbnails/%d", ts.URL, jobID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer thumbResp.Body.Close()
+
+		if thumbResp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 for thumbnail, got %d", thumbResp.StatusCode)
+		}
+
+		if thumbResp.Header.Get("Content-Type") != "image/png" {
+			t.Fatalf("expected image/png content type, got %s", thumbResp.Header.Get("Content-Type"))
+		}
+	})
+
+	t.Run("Job without OpenGraph image", func(t *testing.T) {
+		// Create job with page that has no og:image
+		testURL := mockServer.URL + "/no-image-page"
+		resp, err := http.PostForm(ts.URL+"/api/jobs", url.Values{
+			"app_id": {"test"},
+			"urls":   {testURL},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+
+		var result struct {
+			IDs []int64 `json:"ids"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		jobID := result.IDs[0]
+
+		// Wait for metadata processing
+		time.Sleep(2 * time.Second)
+
+		// Check job has no image_path
+		job, err := store.GetJob(db, jobID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if job.ImagePath != nil {
+			t.Fatal("expected job to have no image_path")
+		}
+	})
+
+	t.Run("Thumbnail security", func(t *testing.T) {
+		// Test various security scenarios with the job ID based endpoint
+		
+		// Test 1: Invalid job ID format
+		resp, err := http.Get(ts.URL + "/thumbnails/invalid")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid job ID, got %d", resp.StatusCode)
+		}
+
+		// Test 2: Non-existent job ID
+		resp2, err := http.Get(ts.URL + "/thumbnails/99999")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp2.Body.Close()
+		
+		if resp2.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected 404 for non-existent job, got %d", resp2.StatusCode)
+		}
+
+		// Test 3: Job without image
+		// Create a job without an image first (we already have one from the previous test)
+		// The "no-image-page" job should be job ID 2
+		resp3, err := http.Get(ts.URL + "/thumbnails/2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp3.Body.Close()
+		
+		if resp3.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected 404 for job without image, got %d", resp3.StatusCode)
+		}
+	})
+}

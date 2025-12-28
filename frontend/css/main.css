@@ -240,6 +240,11 @@ footer {
   align-items: center;
 }
 
+/* Actions row - hidden by default, shown in specific themes */
+.lt-actions-row {
+  display: none;
+}
+
 .lt-flex-between {
   display: flex;
   justify-content: space-between;

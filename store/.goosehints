@@ -17,3 +17,6 @@ SQLite is the durable source of truth for jobs, logs, and discovered artifacts.
 
 ## Security-sensitive areas
 - Any file download/delete must ensure paths stay under `watch_dir` (server enforces; keep that invariant).
+
+## Migrations
+This project is in development, so don't worry about migrations. We will always drop and recreate the database as needed.
