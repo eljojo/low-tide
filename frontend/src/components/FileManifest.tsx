@@ -50,10 +50,6 @@ export const FileManifest = ({ job }: FileManifestProps) => {
 
   return (
     <ManifestSection>
-      <h3 className="lt-title-section">
-        Artifact Manifest {hasFiles ? `[${files.length} Item${files.length === 1 ? '' : 's'}]` : ''}
-      </h3>
-
       {!hasFiles ? (
         <ManifestPlaceholder>
           {isCleaned ? 'Files have been cleaned' : 'No files available'}

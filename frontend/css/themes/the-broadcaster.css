@@ -234,25 +234,45 @@ body[data-theme='the-broadcaster'] .lt-card {
   min-height: 200px; /* Give enough space for absolutely positioned image */
 }
 
-/* BUTTON POSITIONING: Show buttons under title, hide bottom buttons */
-body[data-theme='the-broadcaster'] .lt-actions-row {
+/* BUTTON POSITIONING: Reposition the single ActionRow for broadcaster */
+body[data-theme='the-broadcaster'] .lt-pane-header {
   display: flex;
+  flex-direction: column;
+}
+
+body[data-theme='the-broadcaster'] .lt-job-actions {
+  display: flex !important;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: 0.8rem;
   margin-bottom: 0.4rem;
+  order: 2; /* Place after HeaderContent (order 1) */
 }
 
-/* Ensure indicator is inside actions row if we move it there in JSX, 
-   but for now we'll handle it via CSS positioning relative to the container if needed.
-   Actually, let's adjust JobHeader.tsx to make it easier. */
+body[data-theme='the-broadcaster'] .lt-header-content {
+  order: 1;
+}
+
+body[data-theme='the-broadcaster'] .lt-meta {
+  order: 3;
+}
+
+/* Move Downloading indicator next to buttons */
+body[data-theme='the-broadcaster'] .lt-running-indicator {
+  position: static !important;
+  display: inline-flex !important;
+  margin-right: 0.5rem;
+  box-shadow: 3px 3px 0px var(--fg) !important;
+  border: 3px solid var(--fg) !important;
+  padding: 0.3rem 0.7rem !important;
+  height: auto;
+  order: -1; /* Ensure indicator is first in the action row */
+}
+
+body[data-theme='the-broadcaster'] .lt-running-text {
+  display: inline !important;
+}
 
 /* By default, we keep .lt-row visible for all themes except where we decide 
-   to move things. In broadcaster, we moved them to .lt-actions-row.
-   E2E tests look for buttons by text. Since we added .lt-action-btn and .lt-bottom-btn 
-   distinctions, we can just let either be clickable.
+   to move things. 
 */
-body[data-theme='the-broadcaster'] .lt-row {
-  display: none !important;
-}
