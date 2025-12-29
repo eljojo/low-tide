@@ -4,6 +4,12 @@ Low Tide is a **self-hosted, single-node web app** for managing media downloads 
 
 Built for homelabs, it provides a clean separation between orchestration and download logic, allowing you to leave a UI open while downloads run on a small, predictable service.
 
+
+
+https://github.com/user-attachments/assets/cc6b5f71-dc26-4356-85de-de267bc9b46d
+
+
+
 ---
 
 ## Features
