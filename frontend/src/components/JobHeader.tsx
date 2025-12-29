@@ -144,7 +144,7 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
           <MainTitleRow>
             <Title>{title}</Title>
           </MainTitleRow>
-          <div className="lt-meta" style={{ marginTop: '0.4rem' }}>
+          <div className="lt-meta lt-job-header-metadata" style={{ marginTop: '0.4rem' }}>
             <span>Entry #{job.id} &bull; {new Date(job.created_at).toLocaleString()}</span>
           </div>
         </TitleGroup>

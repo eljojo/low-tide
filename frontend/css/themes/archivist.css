@@ -16,3 +16,10 @@
   --input-bg: rgba(0, 0, 0, 0.02);
   --border-color: rgba(0, 0, 0, 0.08);
 }
+
+body[data-theme='archivist'] .lt-job-header-metadata {
+  display: none;
+}
+body[data-theme='archivist'] .lt-header-content {
+  margin-bottom: 1.5rem;
+}

@@ -57,3 +57,9 @@ body[data-theme='midnight-vinyl'] .lt-job-item.selected {
   border-color: var(--accent2);
 }
 
+body[data-theme='midnight-vinyl'] .lt-job-header-metadata {
+  display: none;
+}
+body[data-theme='midnight-vinyl'] .lt-header-content {
+  margin-bottom: 1.5rem;
+}
