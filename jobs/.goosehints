@@ -5,6 +5,7 @@ This package is the orchestration heart: one worker runs one job at a time, stre
 - Deliberately sequential: `Manager.worker()` processes jobs one-at-a-time from `Manager.Queue`.
 - Files are discovered via filesystem events + reconciliation, not via parsing CLI output.
 - Frontend state is driven by server broadcasts (see `BroadcastJobSnapshot`), aligned with CONTRIBUTING’s “snapshot as truth”.
+- Metadata (titles, images) is fetched asynchronously via `FetchAndSaveMetadata` after a job is queued.
 
 ## How artifact tracking works
 - A baseline snapshot of files in `watch_dir` is taken before a job runs; baseline files are ignored.

@@ -1,97 +1,63 @@
 # Low Tide
 
-Low Tide is a **self-hosted, single-node web app** for managing media downloads (via tools like `yt-dlp`, `tidal-dl-ng`, etc.) with a **live UI**, **persisted history**, and **simple automation**.
+Low Tide is a **self-hosted, single-node web app** for managing media downloads (via tools like `yt-dlp`, `axel`, etc.) with a **live UI**, **persisted history**, and **simple automation**.
 
-It’s built for homelabs where you want:
-
-- A small, predictable service you can run on a box/NAS/VPS
-- A UI you can leave open while downloads run
-- A clean separation between “orchestration” and “download logic”
+Built for homelabs, it provides a clean separation between orchestration and download logic, allowing you to leave a UI open while downloads run on a small, predictable service.
 
 ---
 
-## What makes it different
+## Features
 
-- **Pluggable download backends (CLI-first)**: Low Tide doesn’t re-implement YouTube/Tidal/etc. It runs the CLI tools you already trust, based on a YAML config.
-- **Live terminal in the browser**: See the subprocess output as it happens (ANSI formatting preserved), not just “percent complete”.
-- **Artifact tracking without guesswork**: Files are detected via **filesystem watching**, so the UI updates as soon as files land on disk.
-- **State survives restarts**: Jobs, output logs, and discovered artifacts are persisted to a local **SQLite** database.
-- **Deliberately sequential**: One worker processes jobs **one-at-a-time** to reduce throttling/rate limits and keep resource usage sane.
-
----
-
-## What you can do with it
-
-- Queue URLs (one URL per job; paste multiple URLs to create multiple jobs)
-- Choose a downloader “app” (or let Low Tide auto-pick based on URL regex)
-- Watch logs live while the job runs, in real time (websockets babayy!!!)
-- Download results (single file or a ZIP of all job artifacts)
-- Cancel running jobs
-- Retry failed/cancelled jobs
-- Archive finished jobs, so they don't show up in the UI
-- “Cleanup” a job (delete artifacts on disk and mark the job cleaned)
-- **Theme Support**: Includes multiple built-in themes ('The Archivist', 'Midnight Vinyl', 'The Broadcaster') to match your aesthetic.
+- **Pluggable Backends**: Runs the CLI tools you already trust (`yt-dlp`, `axel`, etc.) based on YAML config.
+- **Live Terminal**: See real-time subprocess output with ANSI formatting in your browser.
+- **Artifact Tracking**: Automatic filesystem watching detects results as soon as they land on disk.
+- **Queue Management**: Queue URLs (single or bulk), cancel running jobs, and retry failures.
+- **State Persistence**: Jobs, logs, and artifacts are persisted to a local **SQLite** database.
+- **One-at-a-Time Worker**: Processes jobs sequentially to reduce rate limits and keep resource usage predictable.
+- **Management Tools**: Download results (single file or ZIP), archive finished jobs, and safe artifact cleanup.
+- **Theme Support**: Multiple built-in themes like 'The Archivist', 'Midnight Vinyl', and 'The Broadcaster'.
 
 ---
 
-## Configuration (high level)
+## Configuration
 
-Low Tide is configured via a YAML file; see [`config/config.yaml`](config/config.yaml) for a complete example.
+Low Tide is configured via a YAML file. See [`config/config.yaml`](config/config.yaml) for a complete example.
 
 ```yaml
 listen_addr: ":8080"
 db_path: "/var/lib/lowtide/lowtide.db"
 downloads_dir: "/var/lib/lowtide/downloads"
 apps:
-  - id: "yt-dlp"
-    name: "yt-dlp"
+  - id: "video"
+    name: "Video (best)"
     command: "yt-dlp"
-    args: ["-P", ".", "%u"]
-    regex: '^https?://(www\.)?(youtube|vimeo|soundcloud|bandcamp|mixcloud)\.com/'
-  - id: "tidal-dl-ng"
-    name: "tidal-dl-ng"
-    command: "tidal-dl-ng"
-    strip_trailing_slash: true
-    args: ["dl", "%u"]
-    regex: '^https?://(www\.|listen\.)?tidal\.com/'
+    args: ["-f", "bestvideo+bestaudio", "-P", ".", "%u"]
+    regex: '^https?://(www\.)?(youtube|vimeo)\.com/'
+  - id: "audio"
+    name: "Audio (best)"
+    command: "yt-dlp"
+    args: ["-f", "bestaudio", "-x", "--audio-format", "mp3", "-P", ".", "%u"]
+    regex: '^https?://(www\.)?(soundcloud|bandcamp|mixcloud)\.com/'
 ```
 
-## Status, scope, and non-goals
+---
+
+## Philosophy & Constraints
 
 Low Tide is intentionally small and opinionated.
 
-- **Single-node**: no clustering, no distributed workers.
-- **Not a multi-user service**: there is currently **no authentication/authorization**.
-- **Not a generic workflow engine**: the core job model is “run a command for a URL, then track produced files”.
-
-If you want multi-user permissions, remote storage backends, and a full download-manager ecosystem, you may prefer other tools.
-
----
-
-## Limitations / known caveats
-
-Low Tide is intentionally opinionated. A few behaviors are important to understand up front:
-
-- **No auth, no multi-user permissions**: treat this as **LAN-only** or put it behind a reverse proxy with auth.
-- **Sequential execution**: jobs are processed **one-at-a-time** by design.
-- **Single URL per job**: pasting multiple URLs creates multiple jobs (not a multi-step workflow).
-- **Artifact tracking is `downloads_dir`-scoped**:
-  - Only files written **under `downloads_dir`** can be detected/downloaded/cleaned.
-  - Each job runs in its own subfolder (named by job ID) within the `downloads_dir`.
-  - Since each job has a dedicated folder, file attribution is isolated and cleanup is safe.
-- **Strict URL Validation**: By default, Low Tide rejects URLs that resolve to private or local IP ranges (e.g. `127.0.0.1`, `192.168.x.x`) to prevent Server-Side Request Forgery (SSRF). This is enabled by default and can be disabled by setting the environment variable `LOWTIDE_STRICT_URL_VALIDATION=false`.
-- The server executes configured commands; treat config changes as privileged.
+- **Single-node / Single-user**: No clustering, distributed workers, or built-in authentication. Use a reverse proxy for auth.
+- **Sequential Execution**: Jobs are processed one-at-a-time by design.
+- **Isolated Artifacts**: Each job runs in a dedicated subfolder within `downloads_dir` for safe tracking and cleanup.
+- **Strict URL Validation**: Rejects local/private IP ranges by default (SSRF protection). Disable via `LOWTIDE_STRICT_URL_VALIDATION=false`.
+- **Config is Privileged**: The server executes configured commands; treat configuration changes as privileged.
 
 ---
 
-## Docs
+## Contributing & Docs
 
-- Config example: [`config/config.yaml`](config/config.yaml)
-- Contributor/architecture guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-
-## Contributing
-
-For details on architecture, data flow, and how to develop for Low Tide, please see [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Configuration Details**: [`config/config.yaml`](config/config.yaml)
+- **Development & Architecture**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 

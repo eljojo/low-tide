@@ -1,15 +1,60 @@
 listen_addr: ":8080"
 db_path: "lowtide.db"
 downloads_dir: "downloads"
+
 apps:
-  - id: "yt-dlp"
-    name: "yt-dlp"
+  # ─────────────────────────────
+  # Video (best quality)
+  # ─────────────────────────────
+  - id: "video-best"
+    name: "Video (best)"
     command: "yt-dlp"
-    args: ["-P", ".", "%u"]
-    regex: '^https?://(www\.)?(youtube|vimeo|soundcloud|bandcamp|mixcloud)\.com/'
-  - id: "tidal-dl-ng"
-    name: "tidal-dl-ng"
-    command: "tidal-dl-ng"
-    strip_trailing_slash: true
-    args: ["dl", "%u"]
-    regex: '^https?://(www\.|listen\.)?tidal\.com/'
+    args:
+      - "-f"
+      - "bv*+ba/b"
+      - "-P"
+      - "."
+      - "%u"
+    regex: '^https?://(www\.)?(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|instagram\.com|facebook\.com|fb\.watch|twitter\.com|x\.com|twitch\.tv|reddit\.com|redd\.it)/'
+
+  # ─────────────────────────────
+  # Audio (best available codec)
+  # ─────────────────────────────
+  - id: "audio-best"
+    name: "Audio (best)"
+    command: "yt-dlp"
+    args:
+      - "-x"
+      - "--audio-format"
+      - "best"
+      - "-P"
+      - "."
+      - "%u"
+    regex: '^https?://(www\.)?(youtube|soundcloud|bandcamp|mixcloud)\.com/'
+
+  # ─────────────────────────────
+  # Audio MP3
+  # ─────────────────────────────
+  - id: "audio-mp3"
+    name: "Audio (MP3)"
+    command: "yt-dlp"
+    args:
+      - "-x"
+      - "--audio-format"
+      - "mp3"
+      - "--audio-quality"
+      - "0"
+      - "-P"
+      - "."
+      - "%u"
+    regex: '^https?://(www\.)?(youtube|soundcloud|bandcamp|mixcloud)\.com/'
+
+  # ─────────────────────────────
+  # Raw file download
+  # ─────────────────────────────
+  - id: "file"
+    name: "File"
+    command: "axel"
+    args:
+      - "-a"
+      - "%u"

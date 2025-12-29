@@ -24,16 +24,15 @@ For Frontend (React + Playwright):
 When dealing with special characters/text literals in code, store them in internal/chars/chars.go, and be EXTRA careful when handling that file.
 For example: `summaryLine := chars.NewLine + fmt.Sprintf`...
 
+## Server logic
+`server.go` handles API routing, WebSocket upgrading, and artifact serving (ZIPs, thumbnails). It relies on `http_helpers.go` for common tasks.
+
 # As the project evolves
 **Keep `README.md`, `CONTRIBUTING.md`, and all `.goosehints` up to date when major architectural/product direction changes happen** (not for small additions).
 
-❯ find .|grep goosehints
-./.goosehints
-./frontend/.goosehints
-./frontend/src/.goosehints
-./internal/chars/.goosehints
-./internal/terminal/.goosehints
-./templates/.goosehints
-./jobs/.goosehints
-./store/.goosehints
+## Repository map
+A high-level map of the repository structure is maintained in `CONTRIBUTING.md`.
+Refer to it for the locations of core logic like `jobs/` and `store/`.
+
+Detailed hints for specific subdirectories are in their respective `.goosehints` files.
 
