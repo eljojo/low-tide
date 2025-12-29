@@ -3,3 +3,7 @@
 /low-tide
 /node_modules/
 e2e/tmp/
+
+# don't commit these, always rebuild
+static/css/bundle.css
+static/js/bundle.js
