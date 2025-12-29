@@ -44,6 +44,7 @@ func NewServer(db *sql.DB, cfg *config.Config, mgr *jobs.Manager) *Server {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/job/", s.handleIndex)
 	mux.Handle("/static/", http.FileServer(http.FS(assets)))
 	mux.HandleFunc("/api/jobs", s.handleJobs)
 	mux.HandleFunc("/api/jobs/", s.handleJobAction)
@@ -53,7 +54,7 @@ func (s *Server) Routes() http.Handler {
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+	if r.URL.Path != "/" && !strings.HasPrefix(r.URL.Path, "/job/") {
 		http.NotFound(w, r)
 		return
 	}

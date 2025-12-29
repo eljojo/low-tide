@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { AppState, Job } from './types';
-import { fetchJobLogs } from './api';
+import { fetchJobLogs, fetchJobDetails } from './api';
 
 // Non-reactive log storage to avoid React re-render overhead
 export const logBuffers: Record<number, string> = {};
@@ -9,8 +9,8 @@ export const useJobStore = create<AppState>((set) => ({
   jobs: {},
   selectedJobId: null,
   showArchived: false,
-  isPinned: false,
-  consoleCollapsed: true,
+  // When true, newly running jobs will auto-navigate. Set to false when user explicitly selects a job.
+  shouldAutoNavigateToNewJobs: false,
 
   setJobs: (jobs) => set((state) => {
     const newJobs: Record<number, Job> = {};
@@ -27,30 +27,17 @@ export const useJobStore = create<AppState>((set) => ({
     }
   })),
 
-  selectJob: (id, pinned = true) => set((state) => {
+  // When selecting a job, by default we prevent auto-navigation to other jobs.
+  // When deselecting (id = null), we enable auto-navigation again.
+  selectJob: (id, preventAutoNavigate = true) => set((state) => {
     if (id === null) {
-      return { selectedJobId: null, isPinned: false };
+      return { selectedJobId: null, shouldAutoNavigateToNewJobs: true };
     }
 
-    const job = state.jobs[id];
-    // Fetch logs if they haven't been loaded yet,
-    // or if the job is running (meaning logs are constantly changing).
-    if (!logBuffers[id] || (job && job.status === 'running')) {
-        // Need to trigger fetch
-        setTimeout(() => fetchJobLogs(id), 0);
-    }
-
-    let consoleCollapsed = state.consoleCollapsed;
-    if (job) {
-      consoleCollapsed = job.status === 'success';
-    } else {
-      // If job is not in store yet (e.g. just queued), expand console to show progress
-      consoleCollapsed = false;
-    }
-    return { selectedJobId: id, consoleCollapsed, isPinned: pinned };
+    return { selectedJobId: id, shouldAutoNavigateToNewJobs: !preventAutoNavigate };
   }),
 
-  setIsPinned: (isPinned) => set({ isPinned }),
+  setShouldAutoNavigateToNewJobs: (shouldAuto) => set({ shouldAutoNavigateToNewJobs: shouldAuto }),
 
   deleteJob: (id) => set((state) => {
     const newJobs = { ...state.jobs };
@@ -63,6 +50,4 @@ export const useJobStore = create<AppState>((set) => ({
   }),
 
   toggleArchived: () => set((state) => ({ showArchived: !state.showArchived })),
-  toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
-  setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed }),
 }));

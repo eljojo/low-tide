@@ -37,26 +37,11 @@ Low Tide operates as a **synchronized state machine** where the backend is the s
 
 ---
 
-## Repository Layout
-
-- `main.go`: Application entry point, DB initialization, and service wiring.
-- `server.go`: HTTP handlers, WebSocket management, and asset embedding (`static/`, `templates/`).
-- `http_helpers.go`: Utility functions for the server (e.g., zip writing, path validation).
-- `jobs/`: Core logic: `manager` (queue), `job_execution` (PTY/FS resync), `file_watcher` (artifact tracking), and `state_broadcast` (WS/Snapshots).
-- `store/`: SQLite schema and queries.
-- `config/`: YAML models, app matching (regex), and URL normalization.
-- `frontend/`: Preact + Zustand source code.
-- `internal/terminal/`: ANSI-to-HTML conversion and delta update logic.
-- `integration_test.go`: High-level Go integration tests.
-- `e2e/`: Playwright end-to-end tests for the full stack.
-
----
-
 ## Testing
 
-- **Backend**: Use `go test -v .` for integration tests.
+- **Backend**: Use `make test` for integration tests.
 - **Frontend/E2E**: Use `make test-e2e` to run Playwright tests against a built version of the app.
-- **Full Suite**: Use `make test-all` to run both Go and Playwright tests.
+- **There's more useful commands in the Makefile!**
 
 ---
 
@@ -67,3 +52,8 @@ Low Tide operates as a **synchronized state machine** where the backend is the s
 - Optional bounded concurrency.
 - Webhooks/callbacks on job completion.
 - Temporary download directories with post-completion migration.
+
+---
+
+## .goosehints
+This project is developed using [Goose](https://block.github.io/goose/). `.goosehints` files contain context relevant to AI-agents, but could also be interesting for humans to read.

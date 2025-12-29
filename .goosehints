@@ -31,8 +31,21 @@ For example: `summaryLine := chars.NewLine + fmt.Sprintf`...
 **Keep `README.md`, `CONTRIBUTING.md`, and all `.goosehints` up to date when major architectural/product direction changes happen** (not for small additions).
 
 ## Repository map
-A high-level map of the repository structure is maintained in `CONTRIBUTING.md`.
-Refer to it for the locations of core logic like `jobs/` and `store/`.
 
+- `main.go`: Application entry point, DB initialization, and service wiring.
+- `server.go`: HTTP handlers, WebSocket management, and asset embedding (`static/`, `templates/`).
+- `http_helpers.go`: Utility functions for the server (e.g., zip writing, path validation).
+- `jobs/`: Core logic: `manager` (queue), `job_execution` (PTY/FS resync), `file_watcher` (artifact tracking), and `state_broadcast` (WS/Snapshots).
+- `store/`: SQLite schema and queries.
+- `config/`: YAML models, app matching (regex), and URL normalization.
+- `frontend/src/`: Preact + Zustand + Wouter. (api.ts, index.tsx, store.ts, and others)
+- `frontend/src/components`: FileManifest, JobsList, JobHeader, NewJobForm, SelectedJobPane, TerminalView, ThemeSwitcher, among others.
+- `frontend/css/main.css`: Main CSS file.
+- `frontend/css/themes/`: archivist, midnight-vinyl, the-broadcaster
+- `internal/terminal/`: ANSI-to-HTML conversion and delta update logic.
+- `integration_test.go`: High-level Go integration tests.
+- `e2e/`: Playwright end-to-end tests for the full stack.
+
+More developer notes are maintained in `CONTRIBUTING.md`.
 Detailed hints for specific subdirectories are in their respective `.goosehints` files.
 

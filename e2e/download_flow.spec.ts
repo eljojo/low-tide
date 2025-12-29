@@ -56,19 +56,41 @@ test.describe('Low Tide E2E', () => {
     // Ensure fonts are loaded before taking screenshots
     await page.evaluate(() => document.fonts.ready);
 
+    // Wait for any running jobs from previous tests to finish
+    // This prevents the auto-navigation and "don't navigate away from running job" logic from interfering
+    const runningJobItem = page.locator('.lt-job-item .lt-pill:has-text("RUNNING")');
+    if (await runningJobItem.count() > 0) {
+      // Wait for running jobs to complete
+      await expect(runningJobItem).toHaveCount(0, { timeout: 15000 });
+    }
+
+    // Navigate to root to clear any selection
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
     // --- 1. Queue Job ---
     await page.waitForSelector('option[value="test-curl"]', { state: 'attached', timeout: 10000 });
     await page.selectOption('select#app', 'test-curl');
     await page.fill('textarea#urls', dummyUrl);
 
     const createJobPromise = page.waitForResponse(resp => resp.url().includes('/api/jobs') && resp.request().method() === 'POST');
+
     await page.click('button:has-text("Queue Job")');
+    // // Submit the form programmatically to avoid click interception from overlaying panes
+    // await page.evaluate(() => {
+    //   const form = document.querySelector('form') as HTMLFormElement;
+    //   if (form) form.requestSubmit();
+    // });
+
     const createJobResp = await createJobPromise;
     expect(createJobResp.status()).toBe(200);
     const result = await createJobResp.json();
     const jobId = result.ids[0];
 
     console.log(`Created Job ID: ${jobId}`);
+
+    // --- 1.5. Verify we're seeing the job with the console open after queueing ---
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}/logs$`));
 
     // --- 2. Wait for job to appear and succeed ---
     const jobItem = page.locator('.lt-job-item', { hasText: customTitle });
@@ -94,8 +116,11 @@ test.describe('Low Tide E2E', () => {
     if (await showLogsBtn.isVisible()) {
         await showLogsBtn.click();
     }
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}/logs$`));
     await expect(selectedPane.locator('.lt-terminal')).toBeVisible();
-    await expect(selectedPane.locator('.lt-terminal')).toContainText('Job finished: Success');
+    // Wait for logs to fully load
+    await page.waitForTimeout(500);
+    await expect(selectedPane.locator('.lt-terminal')).toContainText('Job finished: Success', { timeout: 10000 });
     await page.waitForTimeout(100);
     await page.screenshot({ path: path.join(screenshotDir, '02-logs-visible.png'), fullPage: true });
 
@@ -162,5 +187,12 @@ test.describe('Low Tide E2E', () => {
     await expect(manifest.locator('button:has-text("Download")')).toBeVisible();
     await page.waitForTimeout(100);
     await page.screenshot({ path: path.join(screenshotDir, '05-retried-success.png'), fullPage: true });
+
+    // --- 9. Reload and Persistence ---
+    await page.reload();
+    await expect(page).toHaveURL(new RegExp(`/job/${jobId}$`));
+    await expect(page.locator('section.lt-card', { hasText: customTitle })).toBeVisible();
+    // Manifest should be populated after reload (requires fetchJobDetails)
+    await expect(page.locator('.lt-file-hero')).toBeVisible({ timeout: 10000 });
   });
 });

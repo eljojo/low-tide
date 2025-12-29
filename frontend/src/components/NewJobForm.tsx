@@ -1,4 +1,5 @@
 import { useRef } from 'preact/hooks';
+import { useLocation } from 'wouter';
 import { styled } from 'goober';
 import { useJobStore } from '../store';
 
@@ -23,6 +24,8 @@ const Actions = styled('div')`
 
 export const NewJobForm = () => {
   const formRef = useRef<HTMLFormElement>(null);
+  const [, setLocation] = useLocation();
+  const { jobs, selectedJobId } = useJobStore();
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -43,7 +46,11 @@ export const NewJobForm = () => {
       }
       
       if (targetId) {
-        useJobStore.getState().selectJob(targetId, false);
+        const currentJob = selectedJobId ? jobs[selectedJobId] : null;
+        if (!currentJob || currentJob.status !== 'running') {
+          useJobStore.getState().selectJob(targetId);
+          setLocation(`/job/${targetId}/logs`);
+        }
       }
     }
   };
