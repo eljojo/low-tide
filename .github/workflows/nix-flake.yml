@@ -1,0 +1,71 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+        env:
+          FLAKEHUB_API_TOKEN: ${{ secrets.FLAKEHUB_API_TOKEN }}
+
+      - name: Build Docker Image and Run Checks
+        run: |
+          nix build .#container
+          echo "IMAGE_TARBALL=$(readlink -f result)" >> $GITHUB_ENV
+          nix flake check
+          nix build .#checks.x86_64-linux.e2e-tests --out-link e2e-report
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e-report/
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load and Push Image
+        if: github.event_name != 'pull_request'
+        run: |
+          docker load < ${{ env.IMAGE_TARBALL }}
+
+          IMAGE_ID=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[:upper:]' '[:lower:]')
+
+          VERSION=latest-nixos
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${{ github.ref_name }}
+          fi
+
+          echo "Pushing $IMAGE_ID:$VERSION"
+          docker tag low-tide:latest $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
