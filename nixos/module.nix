@@ -66,7 +66,6 @@ in
 
       preStart = ''
         mkdir -p "${cfg.dataDir}/config" "${cfg.dataDir}/state" "${cfg.dataDir}/cache"
-        chown -R ${cfg.user}:${cfg.group} "${cfg.dataDir}"
       '';
 
       environment =
@@ -79,7 +78,18 @@ in
         }
         // cfg.environment;
 
-      path = [ pkgs.yt-dlp pkgs.ffmpeg pkgs.curl pkgs.sqlite ] ++ cfg.extraPackages;
+      systemd.tmpfiles.rules =
+        let
+          home = cfg.dataDir;
+          u = cfg.user;
+          g = cfg.group;
+        in
+        [
+          "d ${home} 0750 ${u} ${g} - -"
+          "d ${home}/config 0750 ${u} ${g} - -"
+        ];
+
+      path = [ pkgs.yt-dlp pkgs.ffmpeg pkgs.curl pkgs.axel pkgs.sqlite ] ++ cfg.extraPackages;
     };
   };
 }
