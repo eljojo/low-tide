@@ -32,13 +32,13 @@ body {
 
 main {
   flex: 1;
-  padding: 3rem 3rem;
+  padding: 2rem 3rem;
   max-width: 1400px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 360px 1fr;
   align-items: stretch;
-  gap: 3rem;
+  gap: 2rem;
   width: 100%;
 }
 
@@ -231,6 +231,10 @@ footer {
 .new-job-card {
   display: flex;
   flex-direction: column;
+}
+
+.new-job-card, .lt-jobs-list {
+  max-height: 32rem;
 }
 
 /* Actions row - hidden by default, shown in specific themes */

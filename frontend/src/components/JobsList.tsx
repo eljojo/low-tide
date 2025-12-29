@@ -113,7 +113,7 @@ export const JobsList = () => {
   const archivedJobs = allJobs.filter(j => j.archived);
 
   return (
-    <LayoutWrapper className="lt-card">
+    <LayoutWrapper className="lt-card lt-jobs-list">
       <Header>
         <h2 className="lt-title-section" style={{ border: 'none' }}>Jobs</h2>
         {archivedJobs.length > 0 && (
