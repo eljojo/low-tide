@@ -425,3 +425,121 @@ func TestIntegration_URLValidation(t *testing.T) {
 		t.Fatalf("expected 200 for local URL with validation disabled, got %d", resp2.StatusCode)
 	}
 }
+
+func TestIntegration_CancelQueuedJob(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "lowtide-cancel-queued-*")
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	downloadsDir := filepath.Join(tmpDir, "downloads")
+	os.MkdirAll(downloadsDir, 0755)
+
+	db, _ := sql.Open("sqlite3", dbPath+"?_fk=1")
+	defer db.Close()
+	store.Init(db)
+
+	cfg := &config.Config{
+		DBPath:       dbPath,
+		DownloadsDir: downloadsDir,
+		Apps: []config.AppConfig{
+			{ID: "sleep", Command: "sleep", Args: []string{"10"}},
+		},
+		StrictURLValidation: false,
+	}
+	mgr, _ := jobs.NewManager(db, cfg)
+	srv := NewServer(db, cfg, mgr)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Submit multiple jobs
+	// First job will start running immediately and block the queue
+	resp1, _ := http.PostForm(ts.URL+"/api/jobs", url.Values{
+		"app_id": {"sleep"},
+		"urls":   {"http://example.com/job1"},
+	})
+	var result1 struct{ IDs []int64 }
+	json.NewDecoder(resp1.Body).Decode(&result1)
+	runningJobID := result1.IDs[0]
+
+	// Give the first job a moment to start running
+	time.Sleep(300 * time.Millisecond)
+
+	// Submit second and third jobs - these should be queued
+	resp2, _ := http.PostForm(ts.URL+"/api/jobs", url.Values{
+		"app_id": {"sleep"},
+		"urls":   {"http://example.com/job2"},
+	})
+	var result2 struct{ IDs []int64 }
+	json.NewDecoder(resp2.Body).Decode(&result2)
+	queuedJobID1 := result2.IDs[0]
+
+	resp3, _ := http.PostForm(ts.URL+"/api/jobs", url.Values{
+		"app_id": {"sleep"},
+		"urls":   {"http://example.com/job3"},
+	})
+	var result3 struct{ IDs []int64 }
+	json.NewDecoder(resp3.Body).Decode(&result3)
+	queuedJobID2 := result3.IDs[0]
+
+	// Give jobs a moment to be queued
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that the first job is running and the others are queued
+	job1, _ := store.GetJob(db, runningJobID)
+	if job1.Status != store.StatusRunning {
+		t.Fatalf("expected job %d to be running, got %s", runningJobID, job1.Status)
+	}
+
+	job2, _ := store.GetJob(db, queuedJobID1)
+	if job2.Status != store.StatusQueued {
+		t.Fatalf("expected job %d to be queued, got %s", queuedJobID1, job2.Status)
+	}
+
+	job3, _ := store.GetJob(db, queuedJobID2)
+	if job3.Status != store.StatusQueued {
+		t.Fatalf("expected job %d to be queued, got %s", queuedJobID2, job3.Status)
+	}
+
+	// Cancel the first queued job (queuedJobID1)
+	cancelResp, err := http.Post(ts.URL+fmt.Sprintf("/api/jobs/%d/cancel", queuedJobID1), "", nil)
+	if err != nil {
+		t.Fatalf("failed to cancel queued job: %v", err)
+	}
+	if cancelResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(cancelResp.Body)
+		t.Fatalf("expected 204 for cancel, got %d: %s", cancelResp.StatusCode, string(body))
+	}
+
+	// Verify the cancelled job has the correct status
+	time.Sleep(100 * time.Millisecond)
+	cancelledJob, _ := store.GetJob(db, queuedJobID1)
+	if cancelledJob.Status != store.StatusCancelled {
+		t.Fatalf("expected job %d to be cancelled, got %s", queuedJobID1, cancelledJob.Status)
+	}
+
+	// Verify the cancellation message
+	if cancelledJob.Logs != "[SYSTEM] Job cancelled while queued." {
+		t.Fatalf("expected cancellation message, got: %s", cancelledJob.Logs)
+	}
+
+	// Verify it has a finished_at timestamp
+	if cancelledJob.FinishedAt == nil {
+		t.Fatal("expected cancelled job to have a finished_at timestamp")
+	}
+
+	// Verify the third job is still queued
+	job3AfterCancel, _ := store.GetJob(db, queuedJobID2)
+	if job3AfterCancel.Status != store.StatusQueued {
+		t.Fatalf("expected job %d to still be queued, got %s", queuedJobID2, job3AfterCancel.Status)
+	}
+
+	// Try to cancel a job that doesn't exist
+	badCancelResp, _ := http.Post(ts.URL+"/api/jobs/99999/cancel", "", nil)
+	if badCancelResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for cancelling non-existent job, got %d", badCancelResp.StatusCode)
+	}
+
+	// Cancel the running job to clean up
+	http.Post(ts.URL+fmt.Sprintf("/api/jobs/%d/cancel", runningJobID), "", nil)
+	time.Sleep(300 * time.Millisecond)
+}

@@ -169,7 +169,7 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
         {hasFiles && (job.status == 'success' || job.status == 'failed' || job.status === 'cancelled') && (
           <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCleanup}>Cleanup</button>
         )}
-        {job.status === 'running' && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>}
+        {(job.status === 'running' || job.status === 'queued') && <button className="lt-btn lt-btn-secondary lt-btn-danger lt-btn-sm" onClick={handleCancel}>Cancel</button>}
         {(job.status === 'failed' || job.status === 'cancelled' || job.status === 'cleaned') && (
           <button className="lt-btn lt-btn-secondary lt-btn-sm" onClick={handleRetry}>
             {job.status === 'cleaned' ? 'Download again' : 'Retry'}
