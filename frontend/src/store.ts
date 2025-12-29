@@ -9,7 +9,8 @@ export const useJobStore = create<AppState>((set) => ({
   jobs: {},
   selectedJobId: null,
   showArchived: false,
-  isPinned: false,
+  // When true, newly running jobs will auto-navigate. Set to false when user explicitly selects a job.
+  shouldAutoNavigateToNewJobs: false,
 
   setJobs: (jobs) => set((state) => {
     const newJobs: Record<number, Job> = {};
@@ -26,15 +27,17 @@ export const useJobStore = create<AppState>((set) => ({
     }
   })),
 
-  selectJob: (id, pinned = true) => set((state) => {
+  // When selecting a job, by default we prevent auto-navigation to other jobs.
+  // When deselecting (id = null), we enable auto-navigation again.
+  selectJob: (id, preventAutoNavigate = true) => set((state) => {
     if (id === null) {
-      return { selectedJobId: null, isPinned: false };
+      return { selectedJobId: null, shouldAutoNavigateToNewJobs: true };
     }
 
-    return { selectedJobId: id, isPinned: pinned };
+    return { selectedJobId: id, shouldAutoNavigateToNewJobs: !preventAutoNavigate };
   }),
 
-  setIsPinned: (isPinned) => set({ isPinned }),
+  setShouldAutoNavigateToNewJobs: (shouldAuto) => set({ shouldAutoNavigateToNewJobs: shouldAuto }),
 
   deleteJob: (id) => set((state) => {
     const newJobs = { ...state.jobs };

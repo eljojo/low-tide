@@ -55,25 +55,29 @@ export function connectWebSocket() {
         const state = useJobStore.getState();
         const oldStatus = state.jobs[job.id]?.status;
         state.updateJob(job);
+
+        // Handle updates for the currently selected job
         if (job.id === state.selectedJobId) {
           if (oldStatus === 'running' && (job.status === 'success' || job.status === 'failed' || job.status === 'cancelled')) {
+            // Current job just finished
             if (job.status === 'success') {
               navigate(`/job/${job.id}`);
             }
 
-            // If the current job finished, check if we should move to another one
+            // Check if we should auto-navigate to another running job
             const otherRunningJob = Object.values(state.jobs).find(j => j.id !== job.id && j.status === 'running');
             if (otherRunningJob) {
               navigate(`/job/${otherRunningJob.id}/logs`);
             } else {
-              // No other job running yet, unpin so the next one that starts is auto-selected
-              state.setIsPinned(false);
+              // No other job running yet, enable auto-navigation so the next job that starts will be auto-selected
+              state.setShouldAutoNavigateToNewJobs(true);
             }
           } else if (oldStatus === 'queued' && job.status === 'running') {
             // If the currently selected job just started, show logs
             navigate(`/job/${job.id}/logs`);
           }
-        } else if (job.status === 'running' && !state.isPinned) {
+        } else if (job.status === 'running' && state.shouldAutoNavigateToNewJobs) {
+          // Auto-navigate to a newly running job (only if auto-navigation is enabled)
           navigate(`/job/${job.id}/logs`);
         }
       } else if (msg.type === 'job_log') {
