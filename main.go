@@ -28,6 +28,14 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
+	// Allow environment variables to override config values
+	if env := os.Getenv("LOWTIDE_DOWNLOADS_DIR"); env != "" {
+		cfg.DownloadsDir = env
+	}
+	if env := os.Getenv("LOWTIDE_DB_PATH"); env != "" {
+		cfg.DBPath = env
+	}
+
 	db, err := sql.Open("sqlite3", cfg.DBPath+"?_fk=1")
 	if err != nil {
 		log.Fatalf("open db: %v", err)

@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+*.db
+lowtide.db
+downloads/
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Test artifacts
+e2e/tmp/
+
+# Development files
+.DS_Store
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Documentation (already in repo)
+README.md
+CONTRIBUTING.md
+docs/
+
+# CI/CD
+.github/
