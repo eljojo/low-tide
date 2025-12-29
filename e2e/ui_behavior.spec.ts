@@ -57,9 +57,11 @@ test.describe('UI Behavior and Navigation', () => {
   test('2. Intelligent Log Toggling - JobsList navigation', async ({ page }) => {
     await page.goto('/');
 
-    // Queue a slow job
+    // Queue a slow job with a unique URL to avoid collisions with other test runs
+    const uniqueUrl = `http://example.com/sleep-nav-${Date.now()}`;
+    
     await page.selectOption('select#app', 'test-sleep'); // test-sleep is usually slow
-    await page.fill('textarea#urls', 'http://example.com/sleep-nav');
+    await page.fill('textarea#urls', uniqueUrl);
 
     const createJobPromise = page.waitForResponse(resp => resp.url().includes('/api/jobs') && resp.request().method() === 'POST');
     await page.click('button:has-text("Queue Job")');
@@ -70,23 +72,51 @@ test.describe('UI Behavior and Navigation', () => {
     // 1. While running, clicking it in the list (or just having it selected) should be /logs
     await expect(page).toHaveURL(new RegExp(`/job/${jobId}/logs$`));
 
+    // Use a stable locator for this specific job item by job id.
+    // This avoids any flakiness around URL formatting (protocol stripping) or status text.
+    const jobItemLocator = page.locator(`.lt-job-item[data-job-id="${jobId}"]`);
+
+    // Debug: Check if the item is visible before clicking
+    await expect(jobItemLocator).toHaveCount(1);
+    // Sanity check: job should start selected (we auto-navigate to it)
+    await expect(jobItemLocator).toHaveAttribute('data-selected', 'true');
+
     // Unselect by clicking root or another job (if exists) or just click the item again to unselect
-    await page.locator('.lt-job-item', { hasText: 'example.com/sleep-nav' }).click();
+    try {
+      await jobItemLocator.click({ timeout: 10000 });
+    } catch (error) {
+      // Take screenshot for debugging
+      await page.screenshot({ path: `e2e/tmp/debug-unselect-click-${jobId}.png`, fullPage: true });
+      // Log the current state
+      const currentUrl = page.url();
+      const jobItems = await page.locator('.lt-job-item').allTextContents();
+      console.log(`[TEST] Current URL: ${currentUrl}`);
+      console.log(`[TEST] All job items at failure:`, jobItems);
+      throw error;
+    }
     await expect(page).toHaveURL('/');
 
+    // Wait for the UI/store to reflect that the job is no longer selected.
+    // (This is the key race that shows up when the whole suite runs.)
+    await expect(jobItemLocator).toHaveAttribute('data-selected', 'false');
+
+    // Ensure the job is still running before re-clicking
+    await expect(jobItemLocator.locator('.lt-pill')).toHaveText('RUNNING');
+
     // Re-select while running -> should go to /logs
-    await page.locator('.lt-job-item', { hasText: 'example.com/sleep-nav' }).click();
+    await jobItemLocator.click();
+
     await expect(page).toHaveURL(new RegExp(`/job/${jobId}/logs$`));
 
     // 2. Wait for it to finish
-    await expect(page.locator('.lt-job-item', { hasText: 'example.com/sleep-nav' }).locator('.lt-pill')).toHaveText('SUCCESS', { timeout: 15000 });
+    await expect(jobItemLocator.locator('.lt-pill')).toHaveText('SUCCESS', { timeout: 15000 });
 
     // Unselect
-    await page.locator('.lt-job-item', { hasText: 'example.com/sleep-nav' }).click();
+    await jobItemLocator.click();
     await expect(page).toHaveURL('/');
 
     // Re-select while finished -> should go to root job URL (collapsed)
-    await page.locator('.lt-job-item', { hasText: 'example.com/sleep-nav' }).click();
+    await jobItemLocator.click();
     await expect(page).toHaveURL(new RegExp(`/job/${jobId}$`));
     await expect(page).not.toHaveURL(new RegExp(`/job/${jobId}/logs$`));
   });
@@ -141,10 +171,10 @@ test.describe('UI Behavior and Navigation', () => {
     await expect(page).toHaveURL(/\/job\/\d+\/logs$/);
     const terminal = page.locator('.lt-terminal');
     const logView = page.locator('.lt-log-view');
-    
+
     // Wait for initial logs to appear
     await expect(terminal).toContainText('Line 1 of long output', { timeout: 10000 });
-    
+
     // Part 1: Verify auto-scroll when at bottom
     // Ensure we start at the bottom
     await page.evaluate(() => {

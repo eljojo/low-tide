@@ -19,11 +19,16 @@ const App = () => {
 
   useEffect(() => {
     loadInitialData().then((jobs) => {
-      // Auto-select running job only if at root and nothing is selected
+      // Only auto-select on *initial load* when we're at root AND auto-navigation is enabled.
+      // This prevents a frustrating UX where the user can never stay on '/'
+      // while a job is running.
       if (window.location.pathname === '/') {
-        const runningJob = jobs.find(j => j.status === 'running');
-        if (runningJob) {
-          setLocation(`/job/${runningJob.id}/logs`);
+        const state = useJobStore.getState();
+        if (state.shouldAutoNavigateToNewJobs) {
+          const runningJob = jobs.find(j => j.status === 'running');
+          if (runningJob) {
+            setLocation(`/job/${runningJob.id}/logs`);
+          }
         }
       }
     });

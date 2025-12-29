@@ -74,7 +74,13 @@ const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
   const title = job.title || job.url || job.original_url || `Job #${job.id}`;
 
   return (
-    <Item className="lt-job-item" selected={selected} onClick={handleClick}>
+    <Item
+      className="lt-job-item"
+      selected={selected}
+      data-job-id={job.id}
+      data-selected={selected ? 'true' : 'false'} // used for tests
+      onClick={handleClick}
+    >
       <div className="lt-flex-between" style={{ gap: '1.2rem' }}>
         <JobItemContent>
           {imageUrl ? (
