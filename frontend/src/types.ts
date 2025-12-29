@@ -26,15 +26,12 @@ export interface AppState {
   selectedJobId: number | null;
   showArchived: boolean;
   isPinned: boolean;
-  consoleCollapsed: boolean;
   setJobs: (jobs: Job[]) => void;
   updateJob: (job: Job) => void;
   selectJob: (id: number | null, pinned?: boolean) => void;
   setIsPinned: (pinned: boolean) => void;
   deleteJob: (id: number) => void;
   toggleArchived: () => void;
-  toggleConsole: () => void;
-  setConsoleCollapsed: (collapsed: boolean) => void;
 }
 
 declare global {

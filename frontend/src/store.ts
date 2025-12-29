@@ -10,7 +10,6 @@ export const useJobStore = create<AppState>((set) => ({
   selectedJobId: null,
   showArchived: false,
   isPinned: false,
-  consoleCollapsed: true,
 
   setJobs: (jobs) => set((state) => {
     const newJobs: Record<number, Job> = {};
@@ -32,15 +31,7 @@ export const useJobStore = create<AppState>((set) => ({
       return { selectedJobId: null, isPinned: false };
     }
 
-    const job = state.jobs[id];
-    let consoleCollapsed = state.consoleCollapsed;
-    if (job) {
-      consoleCollapsed = job.status === 'success';
-    } else {
-      // If job is not in store yet (e.g. just queued), expand console to show progress
-      consoleCollapsed = false;
-    }
-    return { selectedJobId: id, consoleCollapsed, isPinned: pinned };
+    return { selectedJobId: id, isPinned: pinned };
   }),
 
   setIsPinned: (isPinned) => set({ isPinned }),
@@ -56,6 +47,4 @@ export const useJobStore = create<AppState>((set) => ({
   }),
 
   toggleArchived: () => set((state) => ({ showArchived: !state.showArchived })),
-  toggleConsole: () => set((state) => ({ consoleCollapsed: !state.consoleCollapsed })),
-  setConsoleCollapsed: (collapsed) => set({ consoleCollapsed: collapsed }),
 }));

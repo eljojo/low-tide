@@ -58,7 +58,7 @@ export function connectWebSocket() {
         if (job.id === state.selectedJobId) {
           if (oldStatus === 'running' && (job.status === 'success' || job.status === 'failed' || job.status === 'cancelled')) {
             if (job.status === 'success') {
-              state.setConsoleCollapsed(true);
+              navigate(`/job/${job.id}`);
             }
 
             // If the current job finished, check if we should move to another one
@@ -71,7 +71,7 @@ export function connectWebSocket() {
             }
           } else if (oldStatus === 'queued' && job.status === 'running') {
             // If the currently selected job just started, show logs
-            state.setConsoleCollapsed(false);
+            navigate(`/job/${job.id}/logs`);
           }
         } else if (job.status === 'running' && !state.isPinned) {
           navigate(`/job/${job.id}/logs`);

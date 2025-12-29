@@ -48,6 +48,7 @@ export const NewJobForm = () => {
       if (targetId) {
         const currentJob = selectedJobId ? jobs[selectedJobId] : null;
         if (!currentJob || currentJob.status !== 'running') {
+          useJobStore.getState().selectJob(targetId);
           setLocation(`/job/${targetId}/logs`);
         }
       }

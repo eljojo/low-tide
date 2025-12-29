@@ -1,4 +1,5 @@
 import { styled } from 'goober';
+import { useLocation } from 'wouter';
 import { Job } from '../types';
 import { useJobStore, logBuffers } from '../store';
 
@@ -96,12 +97,13 @@ interface JobHeaderProps {
 
 export const JobHeader = ({ job }: JobHeaderProps) => {
   const title = job.title || job.url || job.original_url || `#${job.id}`;
+  const [, setLocation] = useLocation();
 
   const handleRetry = () => {
     logBuffers[job.id] = '';
     window.dispatchEvent(new CustomEvent('job-logs-loaded', { detail: { jobId: job.id } }));
     fetch(`/api/jobs/${job.id}/retry`, { method: 'POST' });
-    useJobStore.getState().setConsoleCollapsed(false);
+    setLocation(`/job/${job.id}/logs`);
   };
   const handleCancel = () => fetch(`/api/jobs/${job.id}/cancel`, { method: 'POST' });
   const handleArchive = () => fetch(`/api/jobs/${job.id}/archive`, { method: 'POST' });

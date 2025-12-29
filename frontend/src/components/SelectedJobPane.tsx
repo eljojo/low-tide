@@ -38,14 +38,13 @@ const LogView = styled('div')<{ collapsed: boolean }>`
 
 export const SelectedJobPane = ({ id, showLogs }: { id: string, showLogs?: boolean }) => {
   const [, setLocation] = useLocation();
-  const { jobs, selectJob, setConsoleCollapsed } = useJobStore();
+  const { jobs, selectJob } = useJobStore();
   const jobId = parseInt(id, 10);
   const job = jobs[jobId];
 
   useEffect(() => {
     if (!isNaN(jobId)) {
         selectJob(jobId);
-        setConsoleCollapsed(!showLogs);
 
         // Ensure data is fetched
         fetchJobDetails(jobId);
@@ -53,7 +52,7 @@ export const SelectedJobPane = ({ id, showLogs }: { id: string, showLogs?: boole
             fetchJobLogs(jobId);
         }
     }
-  }, [jobId, showLogs, selectJob, setConsoleCollapsed]);
+  }, [jobId, selectJob]);
 
   if (!job) return null;
 
