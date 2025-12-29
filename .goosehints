@@ -49,3 +49,6 @@ For example: `summaryLine := chars.NewLine + fmt.Sprintf`...
 More developer notes are maintained in `CONTRIBUTING.md`.
 Detailed hints for specific subdirectories are in their respective `.goosehints` files.
 
+
+# A note on Nix
+We're trying out nix flakes for CI and building containers. If asked to work on flakes or nix, you need to test using `git add flake.nix && nix build .#e2e-tests`. This will take a long time.
