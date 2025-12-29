@@ -116,7 +116,7 @@ test.describe('Low Tide E2E', () => {
     await page.screenshot({ path: path.join(screenshotDir, '02c-pinned-collapsed.png'), fullPage: true });
 
     // --- 5. Archive ---
-    await selectedPane.locator('button:has-text("Archive")').filter({ visible: true }).first().click();
+    await selectedPane.locator('button:has-text("Archive")').click();
 
     await expect(activeList.locator('.lt-job-item', { hasText: customTitle })).not.toBeVisible();
 
@@ -141,7 +141,7 @@ test.describe('Low Tide E2E', () => {
         await archivedJobItem.click();
     }
 
-    const cleanupBtn = selectedPane.locator('button:has-text("Cleanup")').filter({ visible: true }).first();
+    const cleanupBtn = selectedPane.locator('button:has-text("Cleanup")');
     await expect(cleanupBtn).toBeVisible({ timeout: 10000 });
     await cleanupBtn.click();
 
@@ -151,7 +151,7 @@ test.describe('Low Tide E2E', () => {
     await page.screenshot({ path: path.join(screenshotDir, '04-cleaned.png'), fullPage: true });
 
     // --- 8. Download again (Retry) ---
-    const downloadAgainBtn = selectedPane.locator('button:has-text("Download again")').filter({ visible: true }).first();
+    const downloadAgainBtn = selectedPane.locator('button:has-text("Download again")');
     await expect(downloadAgainBtn).toBeVisible();
     await downloadAgainBtn.click();
 
