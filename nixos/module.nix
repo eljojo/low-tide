@@ -64,9 +64,18 @@ in
         ReadOnlyPaths = [ cfg.configFile ];
       };
 
+      preStart = ''
+        mkdir -p "${cfg.dataDir}/config" "${cfg.dataDir}/state" "${cfg.dataDir}/cache"
+        chown -R ${cfg.user}:${cfg.group} "${cfg.dataDir}"
+      '';
+
       environment =
         {
           LOWTIDE_CONFIG = cfg.configFile;
+          HOME = cfg.dataDir;
+          XDG_CONFIG_HOME = "${cfg.dataDir}/config";
+          XDG_STATE_HOME  = "${cfg.dataDir}/state";
+          XDG_CACHE_HOME  = "${cfg.dataDir}/cache";
         }
         // cfg.environment;
 
