@@ -12,7 +12,8 @@ RUN apt-get update && \
         golang-go \
         nodejs \
         npm \
-        make \
+        build-essential \
+        libsqlite3-dev \
         && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
