@@ -35,12 +35,12 @@ const LogView = styled('div')<{ collapsed: boolean }>`
 
 export const SelectedJobPane = () => {
   const { jobs, selectedJobId, consoleCollapsed, toggleConsole } = useJobStore();
-  const job = selectedJobId ? jobs[selectedJobId] : null;
+  const job = selectedJobId !== null ? jobs[selectedJobId] : null;
 
   if (!job) return null;
 
   return (
-    <LayoutWrapper className="lt-card">
+    <LayoutWrapper className="lt-card lt-selected-job-pane">
       <JobHeader job={job} />
       <FileManifest job={job} />
 

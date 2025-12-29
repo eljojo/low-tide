@@ -60,7 +60,7 @@ test.describe('Low Tide E2E', () => {
     await page.waitForSelector('option[value="test-curl"]', { state: 'attached', timeout: 10000 });
     await page.selectOption('select#app', 'test-curl');
     await page.fill('textarea#urls', dummyUrl);
-    
+
     const createJobPromise = page.waitForResponse(resp => resp.url().includes('/api/jobs') && resp.request().method() === 'POST');
     await page.click('button:has-text("Queue Job")');
     const createJobResp = await createJobPromise;
@@ -73,7 +73,7 @@ test.describe('Low Tide E2E', () => {
     // --- 2. Wait for job to appear and succeed ---
     const jobItem = page.locator('.lt-job-item', { hasText: customTitle });
     await expect(jobItem).toBeVisible({ timeout: 15000 });
-    
+
     // Wait for success status
     await expect(jobItem.locator('.lt-pill')).toHaveText('SUCCESS', { timeout: 20000 });
     await page.waitForTimeout(100);
@@ -82,9 +82,9 @@ test.describe('Low Tide E2E', () => {
     // --- 3. View Details ---
     const selectedPane = page.locator('section.lt-card', { hasText: customTitle });
     await expect(selectedPane).toBeVisible();
-    
+
     // Wait for artifacts to appear
-    const manifest = selectedPane.locator('section', { has: page.locator('h3', { hasText: 'Artifact Manifest' }) });
+    const manifest = selectedPane.locator('.lt-file-manifest');
     await expect(manifest.locator('.lt-file-hero')).toBeVisible({ timeout: 10000 });
     await expect(manifest.locator('div', { hasText: /^testfile\.txt$/ }).first()).toBeVisible();
     await expect(manifest.locator('button:has-text("Download")')).toBeVisible();
@@ -117,7 +117,7 @@ test.describe('Low Tide E2E', () => {
 
     // --- 5. Archive ---
     await selectedPane.locator('button:has-text("Archive")').click();
-    
+
     await expect(activeList.locator('.lt-job-item', { hasText: customTitle })).not.toBeVisible();
 
     // --- 6. View Archived ---
@@ -128,7 +128,7 @@ test.describe('Low Tide E2E', () => {
             await expandBtn.click();
         }
     }
-    
+
     const archivedJobItem = page.locator('section >> .lt-job-item', { hasText: customTitle });
     await expect(archivedJobItem).toBeVisible();
     await page.waitForTimeout(100);
@@ -136,7 +136,7 @@ test.describe('Low Tide E2E', () => {
 
     // --- 7. Cleanup ---
     page.on('dialog', dialog => dialog.accept());
-    
+
     if (!(await selectedPane.isVisible())) {
         await archivedJobItem.click();
     }
@@ -154,10 +154,10 @@ test.describe('Low Tide E2E', () => {
     const downloadAgainBtn = selectedPane.locator('button:has-text("Download again")');
     await expect(downloadAgainBtn).toBeVisible();
     await downloadAgainBtn.click();
-    
+
     await expect(activeList.locator('.lt-job-item', { hasText: customTitle })).toBeVisible({ timeout: 10000 });
     await expect(activeList.locator('.lt-job-item', { hasText: customTitle }).locator('.lt-pill')).toHaveText('SUCCESS', { timeout: 20000 });
-    
+
     await expect(manifest.locator('.lt-file-hero')).toBeVisible();
     await expect(manifest.locator('button:has-text("Download")')).toBeVisible();
     await page.waitForTimeout(100);

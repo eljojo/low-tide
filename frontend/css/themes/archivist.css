@@ -14,5 +14,15 @@
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   --header-bg: #ffffff;
   --input-bg: rgba(0, 0, 0, 0.02);
-  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --term-bg: #fdfaf6;
+  --term-fg: #3a3a3a;
+}
+
+/* hide job metadata in header for a cleaner look */
+body[data-theme='archivist'] .lt-job-header-metadata {
+  display: none;
+}
+body[data-theme='archivist'] .lt-header-content {
+  margin-bottom: 1.5rem;
 }

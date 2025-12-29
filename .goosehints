@@ -6,14 +6,18 @@ NEVER load up files from /static/ into your context, it only includes the bundle
 NEVER run the built project binary yourself (i.e `go run`), ask human to do it. BEFORE confirming a bugfix, ALWAYS do a `make build` to ensure things build correctly.
 NEVER delete files without confirming with human first. every single time.
 
-# Makefile Commands
-- `make build`: Bundles the frontend assets and builds the Go binary. Use this to ensure the project compiles correctly.
-- `make test`: Runs only the Go integration tests. Faster way to check backend logic.
-- `make test-e2e`: Builds the project and runs Playwright end-to-end tests. Use this to verify the full user flow. It takes a while to run, use sparingly.
-- `make test-all`: Runs both backend and frontend E2E tests. Also builds the application. Use this for a full verification. It takes a while.
-- `make run`: Bundles the frontend and starts the Go server. NEVER run this directly, ask human to do it.
+# How to test
+When working on the project, it's important to run tests and keep them up to date.
 
-When working on the project, it's important to run tests and keep them up to date. If you want, you can run the individual test commands directly (ie `go test`, `npx playwright test`, etc), but using these make commands at the end of operations before telling a human things are done is good practice.
+For Golang:
+- use `go test` to run specific tests, most things go into the high level integration_test.go
+- use `make build` to ensure the project builds correctly.
+- before confirming golang changes you must build and test
+- NEVER call `go run .`, `./low-tide`, or `make run` directly, ask human to do it.
+
+For Frontend (React + Playwright):
+- to run all frontend tests do `make test-e2e`, otherwise use `npx playwright test <testfile>` to run specific tests.
+- before confirming frontend changes you must run all e2e tests. Make sure to keep them updated!
 
 # Pitfalls to avoid
 ## Note on special characters

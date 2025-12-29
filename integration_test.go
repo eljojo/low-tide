@@ -368,3 +368,4 @@ func TestIntegration_PathSafetyAndWeirdURLs(t *testing.T) {
 		t.Fatalf("expected 400 for out-of-bounds path, got %d", dlResp.StatusCode)
 	}
 }
+

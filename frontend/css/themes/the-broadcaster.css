@@ -15,6 +15,8 @@ body[data-theme='the-broadcaster'] {
   --header-bg: #ffffff;
   --input-bg: #eeeeee;
   --border-color: #000000;
+  --term-bg: #0f0f11;
+  --term-fg: #d1d1d1;
 }
 
 /* Broadcaster Theme Enhancements */
@@ -49,21 +51,13 @@ body[data-theme='the-broadcaster'] .lt-file-grid-header {
   font-weight: 900;
 }
 
-body[data-theme='the-broadcaster'] h2 {
+body[data-theme='the-broadcaster'] .lt-job-title,
+body[data-theme='the-broadcaster'] h2.lt-title-section {
   background: var(--fg);
   color: var(--card-bg);
   padding: 0.6rem 1rem;
   margin: -2rem -2rem 2rem -2rem; /* Pull to edges of card */
   font-size: 0.9rem; 
-}
-
-/* Explicitly target the Pane Title h2 to override the "Banner" style */
-body[data-theme='the-broadcaster'] .pane-title-group h2 {
-  font-size: 1.5rem;
-  text-transform: uppercase;
-  border-bottom: 4px solid var(--fg);
-  padding-bottom: 0.4rem;
-  line-height: 1;
 }
 
 body[data-theme='the-broadcaster'] .lt-btn,
@@ -91,16 +85,138 @@ body[data-theme='the-broadcaster'] .lt-pill-success { border-color: #38cc38 !imp
 body[data-theme='the-broadcaster'] .lt-pill-failed  { border-color: #ff0000 !important; }
 body[data-theme='the-broadcaster'] .lt-pill-queued  { border-color: #888 !important; }
 
-body[data-theme='the-broadcaster'] .lt-log-view {
-  border: 3px solid var(--fg);
-}
 /* Theme-specific indicator overrides */
+body[data-theme='the-broadcaster'] .lt-job-item .lt-indicator-dot { display: none; } /* Hide indicator dot in job list */
 body[data-theme='the-broadcaster'] .lt-indicator-dot {
-  animation: none;
   width: 12px;
   height: 12px;
   background: #00ff00;
   border: 2px solid #000;
   box-shadow: none;
   border-radius: 0 !important;
+}
+
+/* Running indicator positioning - move to avoid image overlap */
+body[data-theme='the-broadcaster'] .lt-running-indicator {
+  background: var(--fg);
+  color: var(--card-bg);
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  margin-right: 0; /* override default margin set by component */
+  height: auto;
+  box-shadow: 3px 3px 0px var(--fg);
+  border: 1px solid var(--fg); /* normally it'd be 3px but looks better with 1px */
+  padding: 0.3rem 0.7rem;
+  order: -1; /* Ensure indicator is first in the action row */
+}
+
+/* PAPER CLIP EFFECT */
+body[data-theme='the-broadcaster'] .lt-job-image-container::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 30px;
+  width: 16px;
+  height: 40px;
+  border: 2px solid #777;
+  border-radius: 10px;
+  background: transparent;
+  z-index: 10;
+  box-shadow:
+    inset 1px 1px 0 rgba(255,255,255,0.8),
+    1px 1px 2px rgba(0,0,0,0.3);
+  pointer-events: none;
+  transform: rotate(-5deg);
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image-container::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 34px;
+  width: 8px;
+  height: 20px;
+  border-right: 2px solid #777;
+  z-index: 10;
+  border-radius: 0 0 5px 0;
+}
+
+/* BROADCASTER THEME: Larger image in top-right, with a cool style */
+body[data-theme='the-broadcaster'] .lt-job-image-container {
+  position: absolute;
+  top: -2.3rem;
+  right: 1rem;
+  width: 210px;
+  height: 140px;
+  z-index: 25;
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image,
+body[data-theme='the-broadcaster'] .lt-job-image-placeholder {
+  width: 100% !important;
+  height: 100% !important;
+  border: 3px solid var(--fg) !important;
+  box-shadow: 4px 4px 0px var(--fg) !important;
+  border-radius: 0 !important;
+  transform: rotate(2deg);
+}
+body[data-theme='the-broadcaster'] .lt-job-image {
+  transition: transform 0.2s ease;
+  object-fit: cover;
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image:hover {
+  transform: rotate(0deg) scale(1.05);
+}
+
+body[data-theme='the-broadcaster'] .lt-job-image-placeholder {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--card-bg),
+    var(--card-bg) 8px,
+    #f0f0f0 8px,
+    #f0f0f0 16px
+  );
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure title banner extends properly in broadcaster theme */
+body[data-theme='the-broadcaster'] .pane-title-group h2 {
+  margin: -2rem -2rem 1rem -2rem !important;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+}
+
+/* BUTTON POSITIONING: Reposition the single ActionRow for broadcaster */
+body[data-theme='the-broadcaster'] .lt-pane-header {
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-theme='the-broadcaster'] .lt-job-actions {
+  display: flex !important;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+  order: 2; /* Place after HeaderContent (order 1) */
+}
+
+body[data-theme='the-broadcaster'] .lt-header-content {
+  order: 1;
+}
+
+body[data-theme='the-broadcaster'] .lt-meta {
+  order: 3;
+}
+
+body[data-theme='the-broadcaster'] .lt-running-text {
+  display: inline !important; /* by default text is hidden */
 }

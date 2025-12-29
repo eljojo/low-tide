@@ -6,3 +6,7 @@ apps:
     name: "Test Curl"
     command: "curl"
     args: ["-o", "testfile.txt", "%u"]
+  - id: "test-multi"
+    name: "Test Multi"
+    command: "sh"
+    args: ["-c", "echo 'file1' > file1.txt && echo 'file2' > file2.txt"]

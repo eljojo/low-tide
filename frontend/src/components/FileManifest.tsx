@@ -38,7 +38,7 @@ export const FileManifest = ({ job }: FileManifestProps) => {
 
   if (status === 'queued') {
     return (
-      <ManifestSection>
+      <ManifestSection className="lt-file-manifest">
         <ManifestPlaceholder>Job hasn't started yet</ManifestPlaceholder>
       </ManifestSection>
     );
@@ -49,11 +49,7 @@ export const FileManifest = ({ job }: FileManifestProps) => {
   }
 
   return (
-    <ManifestSection>
-      <h3 className="lt-title-section">
-        Artifact Manifest {hasFiles ? `[${files.length} Item${files.length === 1 ? '' : 's'}]` : ''}
-      </h3>
-
+    <ManifestSection className="lt-file-manifest">
       {!hasFiles ? (
         <ManifestPlaceholder>
           {isCleaned ? 'Files have been cleaned' : 'No files available'}

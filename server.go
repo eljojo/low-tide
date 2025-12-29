@@ -47,6 +47,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("/static/", http.FileServer(http.FS(assets)))
 	mux.HandleFunc("/api/jobs", s.handleJobs)
 	mux.HandleFunc("/api/jobs/", s.handleJobAction)
+	mux.HandleFunc("/thumbnails/", s.handleThumbnails)
 	mux.HandleFunc("/ws/state", s.handleStateWS)
 	return loggingMiddleware(mux)
 }
@@ -137,7 +138,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			ids = append(ids, jid)
 			s.Mgr.Queue <- jid
 			s.Mgr.BroadcastJobSnapshot(jid)
-			go s.Mgr.FetchAndSaveTitle(jid, u)
+			go s.Mgr.FetchAndSaveMetadata(jid, u)
 		}
 
 		if len(ids) == 0 && len(errors) > 0 {
@@ -421,4 +422,66 @@ func (s *Server) handleStateWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func (s *Server) handleThumbnails(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	const prefix = "/thumbnails/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		http.NotFound(w, r)
+		return
+	}
+
+	jobIDStr := strings.TrimPrefix(r.URL.Path, prefix)
+	// reject empty, and reject any extra path segments
+	if jobIDStr == "" || strings.Contains(jobIDStr, "/") {
+		http.Error(w, "invalid job ID", http.StatusBadRequest)
+		return
+	}
+
+	jobID, err := strconv.ParseInt(jobIDStr, 10, 64)
+	if err != nil || jobID <= 0 {
+		http.Error(w, "invalid job ID", http.StatusBadRequest)
+		return
+	}
+
+	job, err := store.GetJob(s.DB, jobID)
+	if err != nil {
+		http.Error(w, "job not found", http.StatusNotFound)
+		return
+	}
+
+	if job.ImagePath == nil || *job.ImagePath == "" {
+		http.Error(w, "no image for this job", http.StatusNotFound)
+		return
+	}
+
+	relPath := filepath.Clean(*job.ImagePath)
+
+	// must be a relative path (no absolute paths, no volume names)
+	if filepath.IsAbs(relPath) || filepath.VolumeName(relPath) != "" {
+		http.Error(w, "invalid image path", http.StatusBadRequest)
+		return
+	}
+
+	absRoot, err := filepath.Abs(s.Cfg.DownloadsDir)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	absPath := filepath.Join(absRoot, relPath)
+
+	relCheck, err := filepath.Rel(absRoot, absPath)
+	if err != nil || relCheck == ".." || strings.HasPrefix(relCheck, ".."+string(filepath.Separator)) {
+		http.Error(w, "invalid image path", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	http.ServeFile(w, r, absPath)
 }

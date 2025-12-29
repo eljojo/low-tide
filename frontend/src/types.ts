@@ -12,6 +12,7 @@ export interface Job {
   status: 'queued' | 'running' | 'success' | 'failed' | 'cancelled' | 'cleaned';
   created_at: string;
   archived: boolean;
+  image_path?: string;
   files?: FileInfo[];
 }
 

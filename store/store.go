@@ -35,6 +35,7 @@ type Job struct {
 	Archived     bool       `json:"archived"`
 	OriginalURL  string     `json:"original_url"`
 	Title        string     `json:"title"`
+	ImagePath    *string    `json:"image_path,omitempty"`
 	Logs         string     `json:"logs,omitempty"`
 	Files        []JobFile  `json:"files,omitempty"`
 }
@@ -64,6 +65,7 @@ func Init(db *sql.DB) error {
             archived INTEGER NOT NULL DEFAULT 0,
             original_url TEXT,
             title TEXT,
+            image_path TEXT,
             logs TEXT
         );`,
 		`CREATE TABLE IF NOT EXISTS job_files (
@@ -111,13 +113,14 @@ func parseURLTitle(raw string) (string, error) {
 func scanJob(row interface{ Scan(dest ...interface{}) error }, includeLogs bool) (*Job, error) {
 	var j Job
 	var logs sql.NullString
+	var imagePath sql.NullString
 	var urlStr string
 	var status string
 	var archivedInt int
 
 	scanArgs := []interface{}{
 		&j.ID, &j.AppID, &urlStr, &status, &j.PID, &j.ExitCode, &j.ErrorMessage,
-		&j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title,
+		&j.CreatedAt, &j.StartedAt, &j.FinishedAt, &archivedInt, &j.OriginalURL, &j.Title, &imagePath,
 	}
 	if includeLogs {
 		scanArgs = append(scanArgs, &logs)
@@ -126,12 +129,12 @@ func scanJob(row interface{ Scan(dest ...interface{}) error }, includeLogs bool)
 	// This is a bit of a hack to dynamically call Scan with the right number of arguments
 	// because Scan doesn't support a variadic slice.
 	switch len(scanArgs) {
-	case 13:
-		if err := row.Scan(scanArgs[0], scanArgs[1], scanArgs[2], scanArgs[3], scanArgs[4], scanArgs[5], scanArgs[6], scanArgs[7], scanArgs[8], scanArgs[9], scanArgs[10], scanArgs[11], scanArgs[12]); err != nil {
-			return nil, err
-		}
 	case 14:
 		if err := row.Scan(scanArgs[0], scanArgs[1], scanArgs[2], scanArgs[3], scanArgs[4], scanArgs[5], scanArgs[6], scanArgs[7], scanArgs[8], scanArgs[9], scanArgs[10], scanArgs[11], scanArgs[12], scanArgs[13]); err != nil {
+			return nil, err
+		}
+	case 15:
+		if err := row.Scan(scanArgs[0], scanArgs[1], scanArgs[2], scanArgs[3], scanArgs[4], scanArgs[5], scanArgs[6], scanArgs[7], scanArgs[8], scanArgs[9], scanArgs[10], scanArgs[11], scanArgs[12], scanArgs[13], scanArgs[14]); err != nil {
 			return nil, err
 		}
 	default:
@@ -141,6 +144,9 @@ func scanJob(row interface{ Scan(dest ...interface{}) error }, includeLogs bool)
 	j.Status = JobStatus(status)
 	j.Archived = archivedInt != 0
 	j.URL = urlStr
+	if imagePath.Valid {
+		j.ImagePath = &imagePath.String
+	}
 	if includeLogs {
 		j.Logs = logs.String
 	}
@@ -148,13 +154,13 @@ func scanJob(row interface{ Scan(dest ...interface{}) error }, includeLogs bool)
 }
 
 func GetJob(db *sql.DB, id int64) (*Job, error) {
-	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE id = ?`, id)
+	row := db.QueryRow(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, image_path, logs FROM jobs WHERE id = ?`, id)
 	return scanJob(row, true)
 }
 
 
 func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
-	rows, err := db.Query(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, logs FROM jobs WHERE status = ?`, string(status))
+	rows, err := db.Query(`SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, image_path, logs FROM jobs WHERE status = ?`, string(status))
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +177,7 @@ func ListJobsByStatus(db *sql.DB, status JobStatus) ([]Job, error) {
 }
 
 func ListJobs(db *sql.DB, limit int) ([]Job, error) {
-	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title FROM jobs`
+	q := `SELECT id, app_id, url, status, pid, exit_code, error_message, created_at, started_at, finished_at, archived, original_url, title, image_path FROM jobs`
 	q += ` ORDER BY created_at DESC`
 	if limit > 0 {
 		q += ` LIMIT ?`
@@ -259,6 +265,11 @@ func ArchiveJob(db *sql.DB, id int64) error {
 
 func UpdateJobTitle(db *sql.DB, id int64, title string) error {
 	_, err := db.Exec(`UPDATE jobs SET title = ? WHERE id = ?`, title, id)
+	return err
+}
+
+func UpdateJobImagePath(db *sql.DB, id int64, imagePath string) error {
+	_, err := db.Exec(`UPDATE jobs SET image_path = ? WHERE id = ?`, imagePath, id)
 	return err
 }
 
