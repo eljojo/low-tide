@@ -23,7 +23,7 @@ const App = () => {
       if (window.location.pathname === '/') {
         const runningJob = jobs.find(j => j.status === 'running');
         if (runningJob) {
-          setLocation(`/job/${runningJob.id}`);
+          setLocation(`/job/${runningJob.id}/logs`);
         }
       }
     });

@@ -48,11 +48,19 @@ export const SelectedJobPane = ({ id, showLogs }: { id: string, showLogs?: boole
 
         // Ensure data is fetched
         fetchJobDetails(jobId);
-        if (!logBuffers[jobId] || (job && job.status === 'running')) {
+    }
+  }, [jobId, selectJob]);
+
+  // Fetch logs when job is selected or when job finishes (to get complete logs)
+  useEffect(() => {
+    if (!isNaN(jobId) && job) {
+        // Fetch logs if: no logs cached, OR job is running (streaming), OR job just finished
+        const isTerminal = job.status === 'success' || job.status === 'failed' || job.status === 'cleaned';
+        if (!logBuffers[jobId] || job.status === 'running' || isTerminal) {
             fetchJobLogs(jobId);
         }
     }
-  }, [jobId, selectJob]);
+  }, [jobId, job?.status]);
 
   if (!job) return null;
 

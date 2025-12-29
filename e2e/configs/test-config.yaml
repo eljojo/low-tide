@@ -13,4 +13,4 @@ apps:
   - id: "test-sleep"
     name: "Test Sleep"
     command: "sh"
-    args: ["-c", "sleep 1 && echo done > done.txt"]
+    args: ["-c", "echo 'Starting sleep' && sleep 2 && echo 'Done sleeping' && echo 'Done sleeping' > done.txt"]

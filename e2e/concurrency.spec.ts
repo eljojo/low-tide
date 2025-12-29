@@ -22,8 +22,8 @@ test.describe('Concurrency and Navigation', () => {
     await expect(firstJobItem.locator('.lt-pill')).toHaveText('RUNNING', { timeout: 10000 });
 
     // 2. Queue a second job while the first is running
-    await page.selectOption('select#app', 'test-curl');
-    await page.fill('textarea#urls', 'http://example.com/curl2');
+    await page.selectOption('select#app', 'test-sleep');
+    await page.fill('textarea#urls', 'http://example.com/sleep2');
 
     const secondJobPromise = page.waitForResponse(resp => resp.url().includes('/api/jobs') && resp.request().method() === 'POST');
     await page.click('button:has-text("Queue Job")');
