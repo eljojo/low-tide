@@ -57,6 +57,7 @@ body[data-theme='midnight-vinyl'] .lt-job-item.selected {
   border-color: var(--accent2);
 }
 
+/* hide job metadata in header for a cleaner look */
 body[data-theme='midnight-vinyl'] .lt-job-header-metadata {
   display: none;
 }

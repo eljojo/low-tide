@@ -65,13 +65,11 @@ const Title = styled('h2')`
 const RunningIndicator = styled('div')`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
   font-size: 0.75rem;
   color: var(--muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  z-index: 10;
   margin-right: 0.5rem;
 
   .lt-running-text {
@@ -142,7 +140,7 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
         </ImageContainer>
         <TitleGroup className="pane-title-group">
           <MainTitleRow>
-            <Title>{title}</Title>
+            <Title className="lt-job-title">{title}</Title>
           </MainTitleRow>
           <div className="lt-meta lt-job-header-metadata" style={{ marginTop: '0.4rem' }}>
             <span>Entry #{job.id} &bull; {new Date(job.created_at).toLocaleString()}</span>

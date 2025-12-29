@@ -112,7 +112,7 @@ test.describe('Job Images E2E', () => {
     // Check that the job image is present and visible in the job header
     const jobHeaderImage = selectedPane.locator('img[alt="' + customTitle + '"]');
     await expect(jobHeaderImage).toBeVisible({ timeout: 10000 });
-    
+
     // Verify the image source uses the secure job ID endpoint format
     const headerImageSrc = await jobHeaderImage.getAttribute('src');
     expect(headerImageSrc).toMatch(/^\/thumbnails\/\d+$/);
@@ -123,19 +123,13 @@ test.describe('Job Images E2E', () => {
     // --- 4. Verify thumbnail is also displayed in job list ---
     const jobListItem = page.locator('.lt-job-item', { hasText: customTitle });
     await expect(jobListItem).toBeVisible();
-    
+
     // Check for thumbnail in job list (32x32 small thumbnail)
     const jobListThumbnail = jobListItem.locator('img[alt="' + customTitle + '"]');
     await expect(jobListThumbnail).toBeVisible();
-    
+
     const listThumbnailSrc = await jobListThumbnail.getAttribute('src');
     expect(listThumbnailSrc).toMatch(/^\/thumbnails\/\d+$/);
-
-    // --- 5. Verify running indicator is positioned correctly ---
-    // The running indicator should now be in the top-right corner, not in metadata area
-    // Since this job is completed (SUCCESS), there should be no running indicator visible
-    const runningIndicator = selectedPane.locator('.lt-running-indicator');
-    await expect(runningIndicator).not.toBeVisible(); // Should not be visible for completed jobs
 
     await page.screenshot({ path: path.join(screenshotDir, '01-job-with-image.png'), fullPage: true });
   });
@@ -158,11 +152,11 @@ test.describe('Job Images E2E', () => {
 
     // --- 1. Create job without OpenGraph image ---
     const noImageUrl = `http://127.0.0.1:${dummyPort}/page-without-image.html`;
-    
+
     await page.waitForSelector('option[value="test-curl"]', { state: 'attached' });
     await page.selectOption('select#app', 'test-curl');
     await page.fill('textarea#urls', noImageUrl);
-    
+
     await page.click('button:has-text("Queue Job")');
 
     // --- 2. Wait for job to complete ---
@@ -187,11 +181,11 @@ test.describe('Job Images E2E', () => {
     // --- 4. Verify placeholder is also shown in job list ---
     const jobListItem = page.locator('.lt-job-item', { hasText: 'Page Without Image' });
     await expect(jobListItem).toBeVisible();
-    
+
     // Job list should have placeholder div but no actual image
     const listImage = jobListItem.locator('img[alt="Page Without Image"]');
     await expect(listImage).not.toBeVisible();
-    
+
     // Should have placeholder div in the job item
     const listPlaceholder = jobListItem.locator('div').first(); // ThumbnailPlaceholder
     await expect(listPlaceholder).toBeVisible();

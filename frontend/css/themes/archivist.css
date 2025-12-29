@@ -17,6 +17,7 @@
   --border-color: rgba(0, 0, 0, 0.08);
 }
 
+/* hide job metadata in header for a cleaner look */
 body[data-theme='archivist'] .lt-job-header-metadata {
   display: none;
 }
