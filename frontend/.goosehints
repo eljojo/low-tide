@@ -26,3 +26,6 @@ Think of it like a CSS Zen garden: the framework provides the structure, themes 
 - **Do not** write raw CSS in components unless it's a specific inline override for a one-off.
 - **Do** favor semantic class names over generic `div` soup.
 - **Do** use CSS variables for colors, fonts, and spacing to ensure theming works.
+
+## 5. Routing (Wouter)
+- The frontend is routed entirely through [Wouter](https://github.com/molefrog/wouter) (Router, Switch, Route, useLocation).
