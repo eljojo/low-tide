@@ -69,6 +69,7 @@ func TestIntegration_DownloadFlow(t *testing.T) {
 				Args:    []string{"-o", "testfile.txt", "%u"},
 			},
 		},
+		StrictURLValidation: false,
 	}
 
 	mgr, err := jobs.NewManager(db, cfg)
@@ -226,6 +227,7 @@ func TestIntegration_Cancellation(t *testing.T) {
 		DBPath:       dbPath,
 		DownloadsDir: downloadsDir,
 		Apps:         []config.AppConfig{{ID: "sleep", Command: "sleep", Args: []string{"10"}}},
+		StrictURLValidation: false,
 	}
 	mgr, _ := jobs.NewManager(db, cfg)
 	srv := NewServer(db, cfg, mgr)
@@ -271,6 +273,7 @@ func TestIntegration_RetryAndCleanup(t *testing.T) {
 		DBPath:       dbPath,
 		DownloadsDir: downloadsDir,
 		Apps:         []config.AppConfig{{ID: "fail-then-succeed", Command: "sh", Args: []string{"-c", "if [ -f fail_flag ]; then rm fail_flag; exit 1; else echo success > success.txt; fi"}}},
+		StrictURLValidation: false,
 	}
 
 	// In the new system, jobs run in their own folder.
@@ -333,7 +336,7 @@ func TestIntegration_PathSafetyAndWeirdURLs(t *testing.T) {
 	defer db.Close()
 	store.Init(db)
 
-	cfg := &config.Config{DBPath: dbPath, DownloadsDir: downloadsDir}
+	cfg := &config.Config{DBPath: dbPath, DownloadsDir: downloadsDir, StrictURLValidation: false}
 	mgr, _ := jobs.NewManager(db, cfg)
 	srv := NewServer(db, cfg, mgr)
 	ts := httptest.NewServer(srv.Routes())
@@ -369,3 +372,56 @@ func TestIntegration_PathSafetyAndWeirdURLs(t *testing.T) {
 	}
 }
 
+
+func TestIntegration_URLValidation(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "lowtide-val-*")
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	downloadsDir := filepath.Join(tmpDir, "downloads")
+	os.MkdirAll(downloadsDir, 0755)
+
+	db, _ := sql.Open("sqlite3", dbPath+"?_fk=1")
+	defer db.Close()
+	store.Init(db)
+
+	// Case 1: Validation Enabled (Default)
+	cfgEnabled := &config.Config{
+		DBPath:       dbPath,
+		DownloadsDir: downloadsDir,
+		Apps:         []config.AppConfig{{ID: "test", Command: "true"}},
+		StrictURLValidation: true,
+	}
+	mgrEnabled, _ := jobs.NewManager(db, cfgEnabled)
+	srvEnabled := NewServer(db, cfgEnabled, mgrEnabled)
+	tsEnabled := httptest.NewServer(srvEnabled.Routes())
+	defer tsEnabled.Close()
+
+	resp, err := http.PostForm(tsEnabled.URL+"/api/jobs", url.Values{"app_id": {"test"}, "urls": {"http://127.0.0.1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for local URL with validation enabled, got %d", resp.StatusCode)
+	}
+
+	// Case 2: Validation Disabled
+	cfgDisabled := &config.Config{
+		DBPath:       dbPath,
+		DownloadsDir: downloadsDir,
+		Apps:         []config.AppConfig{{ID: "test", Command: "true"}},
+		StrictURLValidation: false,
+	}
+	mgrDisabled, _ := jobs.NewManager(db, cfgDisabled)
+	srvDisabled := NewServer(db, cfgDisabled, mgrDisabled)
+	tsDisabled := httptest.NewServer(srvDisabled.Routes())
+	defer tsDisabled.Close()
+
+	resp2, err := http.PostForm(tsDisabled.URL+"/api/jobs", url.Values{"app_id": {"test"}, "urls": {"http://127.0.0.1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for local URL with validation disabled, got %d", resp2.StatusCode)
+	}
+}

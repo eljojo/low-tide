@@ -19,7 +19,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'rm -rf e2e/tmp && mkdir -p e2e/tmp && env LOWTIDE_CONFIG=e2e/configs/test-config.yaml ./low-tide',
+    command: 'rm -rf e2e/tmp && mkdir -p e2e/tmp && env LOWTIDE_CONFIG=e2e/configs/test-config.yaml LOWTIDE_STRICT_URL_VALIDATION=false ./low-tide',
     url: 'http://127.0.0.1:8081',
     reuseExistingServer: false,
     stdout: 'pipe',

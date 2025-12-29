@@ -45,10 +45,11 @@ func (c *Config) GetApp(id string) *AppConfig {
 
 // Config is the top-level configuration structure.
 type Config struct {
-	ListenAddr   string      `yaml:"listen_addr" json:"listen_addr"`
-	DBPath       string      `yaml:"db_path" json:"db_path"`
-	DownloadsDir string      `yaml:"downloads_dir" json:"downloads_dir"`
-	Apps         []AppConfig `yaml:"apps" json:"apps"`
+	ListenAddr         string      `yaml:"listen_addr" json:"listen_addr"`
+	DBPath             string      `yaml:"db_path" json:"db_path"`
+	DownloadsDir       string      `yaml:"downloads_dir" json:"downloads_dir"`
+	Apps               []AppConfig `yaml:"apps" json:"apps"`
+	StrictURLValidation bool        `yaml:"-" json:"strict_url_validation"`
 }
 
 // Load reads the YAML config file from path.
@@ -74,6 +75,15 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.DownloadsDir == "" {
 		cfg.DownloadsDir = "downloads"
+	}
+
+	// Strict URL validation is enabled by default.
+	// It prevents Server-Side Request Forgery (SSRF) by rejecting URLs
+	// that resolve to private or local IP ranges.
+	// Set LOWTIDE_STRICT_URL_VALIDATION=false to disable.
+	cfg.StrictURLValidation = true
+	if os.Getenv("LOWTIDE_STRICT_URL_VALIDATION") == "false" {
+		cfg.StrictURLValidation = false
 	}
 
 	return &cfg, nil
