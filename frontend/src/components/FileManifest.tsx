@@ -38,7 +38,7 @@ export const FileManifest = ({ job }: FileManifestProps) => {
 
   if (status === 'queued') {
     return (
-      <ManifestSection>
+      <ManifestSection className="lt-file-manifest">
         <ManifestPlaceholder>Job hasn't started yet</ManifestPlaceholder>
       </ManifestSection>
     );
