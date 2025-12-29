@@ -424,88 +424,64 @@ func (s *Server) handleStateWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleThumbnails serves thumbnail images by job ID
 func (s *Server) handleThumbnails(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract the job ID from the path: /thumbnails/{jobID}
-	jobIDStr := strings.TrimPrefix(r.URL.Path, "/thumbnails/")
-	if jobIDStr == "" {
-		http.Error(w, "missing job ID", 400)
+	const prefix = "/thumbnails/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		http.NotFound(w, r)
 		return
 	}
 
-	// Parse job ID
+	jobIDStr := strings.TrimPrefix(r.URL.Path, prefix)
+	// reject empty, and reject any extra path segments
+	if jobIDStr == "" || strings.Contains(jobIDStr, "/") {
+		http.Error(w, "invalid job ID", http.StatusBadRequest)
+		return
+	}
+
 	jobID, err := strconv.ParseInt(jobIDStr, 10, 64)
-	if err != nil {
-		http.Error(w, "invalid job ID", 400)
+	if err != nil || jobID <= 0 {
+		http.Error(w, "invalid job ID", http.StatusBadRequest)
 		return
 	}
 
-	// Get job from database to retrieve image path
 	job, err := store.GetJob(s.DB, jobID)
 	if err != nil {
-		http.Error(w, "job not found", 404)
+		http.Error(w, "job not found", http.StatusNotFound)
 		return
 	}
 
-	// Check if job has an image
 	if job.ImagePath == nil || *job.ImagePath == "" {
-		http.Error(w, "no image for this job", 404)
+		http.Error(w, "no image for this job", http.StatusNotFound)
 		return
 	}
 
-	// Construct the full path to the thumbnail
-	thumbnailPath := filepath.Join(s.Cfg.DownloadsDir, *job.ImagePath)
-	
-	// Security check: ensure the path is within the downloads directory
-	absThumbPath, err := filepath.Abs(thumbnailPath)
+	relPath := filepath.Clean(*job.ImagePath)
+
+	// must be a relative path (no absolute paths, no volume names)
+	if filepath.IsAbs(relPath) || filepath.VolumeName(relPath) != "" {
+		http.Error(w, "invalid image path", http.StatusBadRequest)
+		return
+	}
+
+	absRoot, err := filepath.Abs(s.Cfg.DownloadsDir)
 	if err != nil {
-		http.Error(w, "internal error", 500)
-		return
-	}
-	absDownloadsDir, err := filepath.Abs(s.Cfg.DownloadsDir)
-	if err != nil {
-		http.Error(w, "internal error", 500)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	// Ensure the file is within the downloads directory
-	rel, err := filepath.Rel(absDownloadsDir, absThumbPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		http.Error(w, "invalid image path", 400)
+	absPath := filepath.Join(absRoot, relPath)
+
+	relCheck, err := filepath.Rel(absRoot, absPath)
+	if err != nil || relCheck == ".." || strings.HasPrefix(relCheck, ".."+string(filepath.Separator)) {
+		http.Error(w, "invalid image path", http.StatusBadRequest)
 		return
 	}
 
-	// Check if file exists
-	if _, err := os.Stat(thumbnailPath); os.IsNotExist(err) {
-		http.Error(w, "image file not found", 404)
-		return
-	}
-
-	// Set appropriate content type based on file extension
-	ext := strings.ToLower(filepath.Ext(thumbnailPath))
-	switch ext {
-	case ".jpg", ".jpeg":
-		w.Header().Set("Content-Type", "image/jpeg")
-	case ".png":
-		w.Header().Set("Content-Type", "image/png")
-	case ".gif":
-		w.Header().Set("Content-Type", "image/gif")
-	case ".webp":
-		w.Header().Set("Content-Type", "image/webp")
-	case ".svg":
-		w.Header().Set("Content-Type", "image/svg+xml")
-	default:
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-
-	// Set cache headers for images
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-
-	// Serve the file
-	http.ServeFile(w, r, thumbnailPath)
+	http.ServeFile(w, r, absPath)
 }
