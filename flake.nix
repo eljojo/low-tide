@@ -113,6 +113,7 @@
             env = {
               PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+              LOWTIDE_STRICT_URL_VALIDATION = "false";
             };
 
             dontNpmBuild = true;
