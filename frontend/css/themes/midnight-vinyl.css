@@ -15,6 +15,8 @@ body[data-theme='midnight-vinyl'] {
   --header-bg: #161618;
   --input-bg: #1f1f22;
   --border-color: #2a2a2e;
+  --term-bg: #0f0f11;
+  --term-fg: #d1d1d1;
 }
 
 /* In midnight vinyl, we want buttons to be a bit more muted/recessed by default */

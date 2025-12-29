@@ -233,13 +233,6 @@ footer {
   flex-direction: column;
 }
 
-/* Utilities */
-.lt-row {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-}
-
 /* Actions row - hidden by default, shown in specific themes */
 .lt-actions-row {
   display: none;
@@ -263,19 +256,4 @@ footer {
   font-size: 0.75rem;
   color: var(--muted);
   font-weight: 500;
-}
-
-/* ==========================================================================
-   THEME SPECIFIC OVERRIDES
-   ========================================================================== */
-/* Default Terminal Variables (Dark) */
-:root {
-  --term-bg: #0f0f11;
-  --term-fg: #d1d1d1;
-}
-
-body[data-theme='archivist'] {
-  --term-bg: #fdfaf6;
-  --term-fg: #3a3a3a;
-  --border-color: rgba(0, 0, 0, 0.1);
 }

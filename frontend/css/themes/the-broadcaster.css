@@ -15,6 +15,8 @@ body[data-theme='the-broadcaster'] {
   --header-bg: #ffffff;
   --input-bg: #eeeeee;
   --border-color: #000000;
+  --term-bg: #0f0f11;
+  --term-fg: #d1d1d1;
 }
 
 /* Broadcaster Theme Enhancements */
@@ -216,9 +218,5 @@ body[data-theme='the-broadcaster'] .lt-meta {
 }
 
 body[data-theme='the-broadcaster'] .lt-running-text {
-  display: inline !important;
+  display: inline !important; /* by default text is hidden */
 }
-
-/* By default, we keep .lt-row visible for all themes except where we decide 
-   to move things. 
-*/

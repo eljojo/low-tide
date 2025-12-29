@@ -62,6 +62,7 @@ const Title = styled('h2')`
   font-weight: 800;
 `;
 
+// TODO: this RunningIndicator could be refactored
 const RunningIndicator = styled('div')`
   display: flex;
   align-items: center;
@@ -77,8 +78,8 @@ const RunningIndicator = styled('div')`
   }
 `;
 
+// Default theme styling - will be overridden by CSS themes
 const ImageContainer = styled('div')`
-  /* Default theme styling - will be overridden by CSS themes */
   display: flex;
   flex-shrink: 0;
 `;
@@ -147,7 +148,7 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
           </div>
         </TitleGroup>
       </HeaderContent>
-      
+
       <ActionRow className="lt-job-actions">
         {job.status === 'running' && (
           <RunningIndicator className="lt-running-indicator" title="Downloading">
