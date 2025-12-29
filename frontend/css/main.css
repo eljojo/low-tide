@@ -42,6 +42,153 @@ main {
   width: 100%;
 }
 
+@media (max-width: 900px) {
+  #app {
+    overflow-x: hidden;
+  }
+
+  main {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 1rem !important;
+    gap: 1.5rem !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  header, footer {
+    padding: 1.25rem 1rem !important;
+    flex-direction: column !important;
+    gap: 1rem !important;
+    text-align: center !important;
+  }
+
+  .lt-card {
+    padding: 1.25rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+  }
+
+  .new-job-card, .lt-jobs-list, .lt-selected-job-pane {
+    grid-column: auto !important;
+    width: 100% !important;
+    max-height: none !important;
+    min-width: 0 !important;
+  }
+
+  /* Force scroll areas to expand or scroll properly */
+  .lt-scrollable, .goober-ListScrollArea, .goober-TableScrollArea {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  /* Job Header mobile adjustments */
+  .lt-pane-header {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    align-items: stretch !important;
+  }
+
+  .lt-header-content {
+    gap: 1rem !important;
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  .lt-job-image, .lt-job-image-placeholder {
+    width: 64px !important;
+    height: 64px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .lt-job-title {
+    font-size: 1.2rem !important;
+    word-break: break-all !important; /* Force break long URLs */
+    overflow-wrap: break-word !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+  }
+
+  .lt-job-header-metadata {
+    margin-top: 0.2rem !important;
+  }
+
+  .pane-title-group {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lt-job-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    gap: 0.5rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .lt-job-actions .lt-btn {
+    width: 100% !important;
+    padding: 0.8rem 0.5rem !important;
+    margin: 0 !important;
+    font-size: 0.65rem !important;
+  }
+
+  /* File Manifest mobile adjustments */
+  .lt-file-hero {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1.25rem !important;
+    padding: 1rem !important;
+  }
+
+  .lt-file-hero .lt-btn {
+    width: 100% !important;
+    padding: 1rem !important;
+  }
+
+  /* Table adjustments for mobile */
+  .lt-file-grid-header, .lt-file-row {
+    grid-template-columns: 1fr 60px 50px !important;
+    gap: 0.4rem !important;
+    padding: 0.75rem 0.5rem !important;
+  }
+
+  .lt-file-row div {
+    font-size: 0.8rem !important;
+  }
+
+  .lt-btn {
+    min-height: 44px !important;
+  }
+
+  /* Terminal view height adjustment */
+  .lt-log-view:not(.collapsed) {
+    height: 350px !important;
+    padding: 1rem !important;
+    font-size: 0.75rem !important;
+    margin-top: 1rem !important;
+    border: 1px solid var(--border-color) !important;
+    display: block !important;
+  }
+
+  .lt-log-view.collapsed {
+    height: 0 !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    display: block !important;
+    min-height: 0 !important;
+  }
+
+  .lt-flex-between {
+    gap: 0.5rem;
+  }
+}
+
 /* ==========================================================================
    LOW TIDE FRAMEWORK (The Style Guide)
    ========================================================================== */

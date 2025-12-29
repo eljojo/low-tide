@@ -220,3 +220,35 @@ body[data-theme='the-broadcaster'] .lt-meta {
 body[data-theme='the-broadcaster'] .lt-running-text {
   display: inline !important; /* by default text is hidden */
 }
+
+@media (max-width: 900px) {
+  body[data-theme='the-broadcaster'] .lt-job-image-container {
+    position: relative !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: 180px !important;
+    margin-bottom: 1rem !important;
+    order: -1 !important;
+  }
+
+  body[data-theme='the-broadcaster'] .lt-job-image-container::before,
+  body[data-theme='the-broadcaster'] .lt-job-image-container::after {
+    display: none !important; /* Hide paperclip on mobile to save space */
+  }
+
+  body[data-theme='the-broadcaster'] .lt-job-title,
+  body[data-theme='the-broadcaster'] h2.lt-title-section {
+    margin: -1.25rem -1.25rem 1.25rem -1.25rem !important; /* Match mobile card padding */
+  }
+
+  body[data-theme='the-broadcaster'] .pane-title-group h2 {
+    margin: -1.25rem -1.25rem 0.75rem -1.25rem !important;
+    font-size: 1.2rem !important;
+  }
+
+  body[data-theme='the-broadcaster'] .lt-header-content {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+}
