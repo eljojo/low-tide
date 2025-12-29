@@ -245,11 +245,11 @@ func resolveImageURL(imageURL, baseURL string) string {
 	}
 
 	base, err := url.Parse(baseURL)
-	if err != nil {
-		return imageURL // Return original if we can't parse base
+	if err != nil || (base.Scheme == "" && base.Host == "") {
+		return "" // Return empty if we can't parse base
 	}
 
-	// Handle protocol-relative URLs (//example.com/image.jpg)
+	// Handle protocol-relative URLs
 	if strings.HasPrefix(imageURL, "//") {
 		return base.Scheme + ":" + imageURL
 	}
@@ -257,7 +257,7 @@ func resolveImageURL(imageURL, baseURL string) string {
 	// Resolve relative URL
 	resolved, err := base.Parse(imageURL)
 	if err != nil {
-		return imageURL // Return original if we can't resolve
+		return "" // Return empty if we can't resolve
 	}
 
 	return resolved.String()

@@ -4,6 +4,8 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"net/url"
 	"strings"
 	"time"
@@ -145,7 +147,9 @@ func scanJob(row interface{ Scan(dest ...interface{}) error }, includeLogs bool)
 	j.Archived = archivedInt != 0
 	j.URL = urlStr
 	if imagePath.Valid {
-		j.ImagePath = &imagePath.String
+		ext := filepath.Ext(imagePath.String)
+		pathWithQuery := fmt.Sprintf("/thumbnails/%d%s?%d", j.ID, ext, j.CreatedAt.Unix())
+		j.ImagePath = &pathWithQuery
 	}
 	if includeLogs {
 		j.Logs = logs.String

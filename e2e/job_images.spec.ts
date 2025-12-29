@@ -115,7 +115,7 @@ test.describe('Job Images E2E', () => {
 
     // Verify the image source uses the secure job ID endpoint format
     const headerImageSrc = await jobHeaderImage.getAttribute('src');
-    expect(headerImageSrc).toMatch(/^\/thumbnails\/\d+$/);
+    expect(headerImageSrc).toMatch(/^\/thumbnails\/\d+\..+\?\d+$/);
 
     // Wait for image to load (check that it's not hidden due to error)
     await expect(jobHeaderImage).not.toHaveCSS('display', 'none');
@@ -129,7 +129,7 @@ test.describe('Job Images E2E', () => {
     await expect(jobListThumbnail).toBeVisible();
 
     const listThumbnailSrc = await jobListThumbnail.getAttribute('src');
-    expect(listThumbnailSrc).toMatch(/^\/thumbnails\/\d+$/);
+    expect(listThumbnailSrc).toMatch(/^\/thumbnails\/\d+\..+\?\d+$/);
 
     await page.screenshot({ path: path.join(screenshotDir, '01-job-with-image.png'), fullPage: true });
   });

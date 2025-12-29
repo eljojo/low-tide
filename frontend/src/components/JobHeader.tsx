@@ -116,8 +116,7 @@ export const JobHeader = ({ job }: JobHeaderProps) => {
   const hasFiles = files.length > 0;
 
   const getImageUrl = () => {
-    if (!job.image_path) return null;
-    return `/thumbnails/${job.id}`;
+    return job.image_path || null;
   };
 
   const imageUrl = getImageUrl();

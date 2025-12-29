@@ -456,6 +456,12 @@ func (s *Server) handleThumbnails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jobIDStr := strings.TrimPrefix(r.URL.Path, prefix)
+
+	// strip extension if present
+	if dotIdx := strings.LastIndex(jobIDStr, "."); dotIdx != -1 {
+		jobIDStr = jobIDStr[:dotIdx]
+	}
+
 	// reject empty, and reject any extra path segments
 	if jobIDStr == "" || strings.Contains(jobIDStr, "/") {
 		http.Error(w, "invalid job ID", http.StatusBadRequest)
@@ -474,26 +480,32 @@ func (s *Server) handleThumbnails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if job.ImagePath == nil || *job.ImagePath == "" {
+	// ImagePath in store now contains the URL with query params
+	// We need the raw path from the DB, but since we're inside the handler
+	// we just need to know if it HAS an image and what the job ID is.
+	if job.ImagePath == nil {
 		http.Error(w, "no image for this job", http.StatusNotFound)
 		return
 	}
 
-	relPath := filepath.Clean(*job.ImagePath)
-
-	// must be a relative path (no absolute paths, no volume names)
-	if filepath.IsAbs(relPath) || filepath.VolumeName(relPath) != "" {
-		http.Error(w, "invalid image path", http.StatusBadRequest)
+	// Re-construct the file path: thumbnails/{jobID}{ext}
+	// We can find the file on disk by looking at the thumbnails directory
+	// for any file starting with "jobID."
+	thumbnailsDir := filepath.Join(s.Cfg.DownloadsDir, "thumbnails")
+	matches, _ := filepath.Glob(filepath.Join(thumbnailsDir, fmt.Sprintf("%d.*", jobID)))
+	if len(matches) == 0 {
+		http.Error(w, "image file not found", http.StatusNotFound)
 		return
 	}
+
+	// Use the first match
+	absPath := matches[0]
 
 	absRoot, err := filepath.Abs(s.Cfg.DownloadsDir)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-
-	absPath := filepath.Join(absRoot, relPath)
 
 	relCheck, err := filepath.Rel(absRoot, absPath)
 	if err != nil || relCheck == ".." || strings.HasPrefix(relCheck, ".."+string(filepath.Separator)) {

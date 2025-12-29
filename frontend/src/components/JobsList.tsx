@@ -66,8 +66,7 @@ const JobItem = ({ job, selected }: { job: Job, selected: boolean }) => {
   };
 
   const getImageUrl = () => {
-    if (!job.image_path) return null;
-    return `/thumbnails/${job.id}`;
+    return job.image_path || null;
   };
 
   const imageUrl = getImageUrl();
