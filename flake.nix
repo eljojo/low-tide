@@ -10,7 +10,10 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, playwright }:
-    flake-utils.lib.eachDefaultSystem (system:
+  {
+    nixosModules.low-tide = import ./nixos/module.nix;
+  }
+  // flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
           inherit system;
@@ -20,8 +23,6 @@
             })
           ];
         };
-
-        nixosModules.low-tide = import ./nixos/module.nix;
 
         frontend = pkgs.buildNpmPackage {
           pname = "low-tide-frontend";
