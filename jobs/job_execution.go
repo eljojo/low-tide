@@ -27,6 +27,12 @@ func (m *Manager) runJob(jobID int64) {
 	}
 	log.Printf("worker: running job %d (status: %s)", jobID, j.Status)
 
+	// Check if the job was cancelled while in the queue
+	if j.Status == store.StatusCancelled {
+		log.Printf("worker: job %d was cancelled while queued, skipping execution", jobID)
+		return
+	}
+
 	jobDir := filepath.Join(m.downloadsRoot, fmt.Sprintf("%d", jobID))
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		log.Printf("worker: failed to create job dir: %v", err)
@@ -252,21 +258,40 @@ func (m *Manager) resyncJobFiles(jobID int64, dir string) error {
 
 func (m *Manager) CancelJob(jobID int64) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.current == nil || m.current.jobID != jobID {
-		return fmt.Errorf("job %d is not running", jobID)
+	isRunning := m.current != nil && m.current.jobID == jobID
+	m.mu.Unlock()
+
+	if isRunning {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.current.cancel != nil {
+			m.current.cancel() // Cancel the running job
+		}
+		if m.current.pty != nil {
+			// Send SIGTERM to the process group if possible, or just the process
+			_ = m.current.pty.Close()
+		}
+		if m.current.cmd != nil && m.current.cmd.Process != nil {
+			log.Printf("CancelJob %d: killing process %d", jobID, m.current.cmd.Process.Pid)
+			_ = m.current.cmd.Process.Kill()
+		}
+		return nil
 	}
-	if m.current.cancel != nil {
-		m.current.cancel()
+
+	j, err := store.GetJob(m.DB, jobID)
+	if err != nil {
+		return fmt.Errorf("job %d not found: %v", jobID, err)
 	}
-	if m.current.pty != nil {
-		// Send SIGTERM to the process group if possible, or just the process
-		_ = m.current.pty.Close()
+
+	if j.Status != store.StatusQueued {
+		return fmt.Errorf("job %d is not running or queued (status: %s)", jobID, j.Status)
 	}
-	if m.current.cmd != nil && m.current.cmd.Process != nil {
-		log.Printf("CancelJob %d: killing process %d", jobID, m.current.cmd.Process.Pid)
-		_ = m.current.cmd.Process.Kill()
-	}
+
+	finished := time.Now()
+	_ = store.MarkJobCancelled(m.DB, jobID, finished, "[SYSTEM] Job cancelled while queued.")
+	m.BroadcastJobSnapshot(jobID)
+	log.Printf("CancelJob %d: cancelled queued job", jobID)
+
 	return nil
 }
 
