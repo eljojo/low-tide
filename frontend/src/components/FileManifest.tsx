@@ -49,7 +49,7 @@ export const FileManifest = ({ job }: FileManifestProps) => {
   }
 
   return (
-    <ManifestSection>
+    <ManifestSection className="lt-file-manifest">
       {!hasFiles ? (
         <ManifestPlaceholder>
           {isCleaned ? 'Files have been cleaned' : 'No files available'}

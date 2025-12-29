@@ -84,7 +84,7 @@ test.describe('Low Tide E2E', () => {
     await expect(selectedPane).toBeVisible();
 
     // Wait for artifacts to appear
-    const manifest = selectedPane.locator('section', { has: page.locator('h3', { hasText: 'Artifact Manifest' }) });
+    const manifest = selectedPane.locator('.lt-file-manifest');
     await expect(manifest.locator('.lt-file-hero')).toBeVisible({ timeout: 10000 });
     await expect(manifest.locator('div', { hasText: /^testfile\.txt$/ }).first()).toBeVisible();
     await expect(manifest.locator('button:has-text("Download")')).toBeVisible();
