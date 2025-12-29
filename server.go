@@ -32,13 +32,19 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	DB  *sql.DB
-	Cfg *config.Config
-	Mgr *jobs.Manager
+	DB       *sql.DB
+	Cfg      *config.Config
+	Mgr      *jobs.Manager
+	BootTime int64
 }
 
 func NewServer(db *sql.DB, cfg *config.Config, mgr *jobs.Manager) *Server {
-	return &Server{DB: db, Cfg: cfg, Mgr: mgr}
+	return &Server{
+		DB:       db,
+		Cfg:      cfg,
+		Mgr:      mgr,
+		BootTime: time.Now().Unix(),
+	}
 }
 
 func (s *Server) Routes() http.Handler {
@@ -73,6 +79,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err := indexTmpl.Execute(w, map[string]any{
 		"AppsJSON": template.JS(appsJSON),
+		"Version":  s.BootTime,
 	})
 	if err != nil {
 		log.Printf("execute template: %v", err)
