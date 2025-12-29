@@ -12,6 +12,7 @@ RUN apt-get update && \
         golang-go \
         nodejs \
         npm \
+        make \
         && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -25,7 +26,6 @@ RUN npm ci
 COPY . .
 
 RUN make build-frontend
-
 RUN CGO_ENABLED=1 go build -o low-tide -ldflags="-s -w" .
 
 # ============================================================================
@@ -48,6 +48,7 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o 
 
 WORKDIR /app
 
+# Copy only the binary (static/templates are embedded) and config
 COPY --from=builder /build/low-tide /app/low-tide
 COPY --from=builder /build/config/config.yaml /app/config/config.yaml
 
