@@ -106,6 +106,24 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if s.Cfg.StrictURLValidation {
+			var validURLs []string
+			for _, u := range urls {
+				if isPublicURL(u) {
+					validURLs = append(validURLs, u)
+				} else {
+					log.Printf("/api/jobs: rejecting URL (strict validation enabled): %q", u)
+				}
+			}
+			urls = validURLs
+		}
+
+		if len(urls) == 0 {
+			log.Printf("/api/jobs: all URLs were filtered out")
+			http.Error(w, "no valid public URLs provided", 400)
+			return
+		}
+
 		isAuto := appID == "auto" || appID == ""
 
 		// Create one job per URL (single-URL-per-job model)

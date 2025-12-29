@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -146,4 +147,57 @@ func (z *zipWriter) AddFile(path string) error {
 
 func (z *zipWriter) Close() error {
 	return z.zw.Close()
+}
+
+func isPublicURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	host := u.Hostname()
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		log.Printf("isPublicURL: lookup failed for %s: %v", host, err)
+		return false
+	}
+
+	if len(ips) == 0 {
+		return false
+	}
+
+	for _, ip := range ips {
+		if !isPublicIP(ip) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isPublicIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return false
+	}
+
+	// IPv4 private ranges
+	if ip4 := ip.To4(); ip4 != nil {
+		switch {
+		case ip4[0] == 10:
+			return false
+		case ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31:
+			return false
+		case ip4[0] == 192 && ip4[1] == 168:
+			return false
+		case ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127: // CGNAT
+			return false
+		}
+	} else if ip6 := ip.To16(); ip6 != nil {
+		// IPv6 Unique Local Address (ULA) - fc00::/7
+		if ip6[0]&0xfe == 0xfc {
+			return false
+		}
+	}
+
+	return true
 }

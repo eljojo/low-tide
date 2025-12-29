@@ -107,6 +107,7 @@ See `frontend/.goosehints` for the full style guide.
 ## Notable implementation details
 
 - **Artifact paths are always validated** before download/delete to prevent escaping `downloads_dir`.
+- **Strict URL Validation**: Before creating a job, the server resolves the URL hostname and ensures it doesn't point to a private/LAN IP range. This is enabled by default for security. It can be bypassed for local development by setting `LOWTIDE_STRICT_URL_VALIDATION=false` in the environment.
 - **Artifact discovery is FS-driven** (watcher events + reconciliation), not log-parsing.
 - **Terminal rendering** uses ANSI-to-HTML conversion and supports **delta updates** to reduce DOM churn.
 

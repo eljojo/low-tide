@@ -79,6 +79,7 @@ Low Tide is intentionally opinionated. A few behaviors are important to understa
   - Only files written **under `downloads_dir`** can be detected/downloaded/cleaned.
   - Each job runs in its own subfolder (named by job ID) within the `downloads_dir`.
   - Since each job has a dedicated folder, file attribution is isolated and cleanup is safe.
+- **Strict URL Validation**: By default, Low Tide rejects URLs that resolve to private or local IP ranges (e.g. `127.0.0.1`, `192.168.x.x`) to prevent Server-Side Request Forgery (SSRF). This is enabled by default and can be disabled by setting the environment variable `LOWTIDE_STRICT_URL_VALIDATION=false`.
 - The server executes configured commands; treat config changes as privileged.
 
 ---
