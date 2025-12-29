@@ -133,47 +133,65 @@ test.describe('UI Behavior and Navigation', () => {
   test('3. Log Streaming and Auto-scroll', async ({ page }) => {
     await page.goto('/');
 
-    // Queue a job that outputs logs slowly
-    await page.selectOption('select#app', 'test-sleep');
-    await page.fill('textarea#urls', 'http://example.com/stream-test');
+    // Queue a job that outputs many lines slowly
+    await page.selectOption('select#app', 'test-long-output');
+    await page.fill('textarea#urls', 'http://example.com/autoscroll-test');
     await page.click('button:has-text("Queue Job")');
 
     await expect(page).toHaveURL(/\/job\/\d+\/logs$/);
     const terminal = page.locator('.lt-terminal');
-    
-    // 1. Check incremental update (test-sleep outputs "Starting sleep" then "Done sleeping")
-    await expect(terminal).toContainText('Starting sleep', { timeout: 10000 });
-    
-    // 2. Test auto-scroll
     const logView = page.locator('.lt-log-view');
     
-    // Wait for some logs so we can scroll
-    await expect(terminal).toContainText('Starting sleep');
+    // Wait for initial logs to appear
+    await expect(terminal).toContainText('Line 1 of long output', { timeout: 10000 });
     
-    // Ensure we are at the bottom initially
+    // Part 1: Verify auto-scroll when at bottom
+    // Ensure we start at the bottom
     await page.evaluate(() => {
       const el = document.querySelector('.lt-log-view');
       el.scrollTop = el.scrollHeight;
     });
 
-    // Manually scroll up
+    // Wait for more output (Line 20 should appear after some time)
+    await expect(terminal).toContainText('Line 20 of long output', { timeout: 5000 });
+
+    // Check that we're still at the bottom (auto-scrolled)
+    const isAtBottomAfterNewOutput = await page.evaluate(() => {
+      const el = document.querySelector('.lt-log-view');
+      return Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 5;
+    });
+    expect(isAtBottomAfterNewOutput).toBe(true);
+
+    // Part 2: Verify NO auto-scroll when manually scrolled up
+    // Scroll to the top
     await page.evaluate(() => {
       const el = document.querySelector('.lt-log-view');
       el.scrollTop = 0;
     });
 
-    // Wait for more logs (the "Done sleeping" message from test-sleep)
-    await expect(terminal).toContainText('Done sleeping', { timeout: 15000 });
-
-    // Should NOT have auto-scrolled to bottom because we were scrolled up
-    const isAtTop = await page.evaluate(() => {
+    // Get the current scroll position
+    const scrollTopBeforeNewOutput = await page.evaluate(() => {
       const el = document.querySelector('.lt-log-view');
-      return el.scrollTop === 0;
+      return el.scrollTop;
     });
-    expect(isAtTop).toBe(true);
 
-    // Now scroll to bottom and wait for any final output if possible, 
-    // or just verify that if we ARE at bottom it stays there.
-    // (Since the job might be finished, let's just verify the logic)
+    // Wait for significantly more output (Line 50)
+    await expect(terminal).toContainText('Line 50 of long output', { timeout: 5000 });
+
+    // Verify scroll position hasn't changed (stayed at top)
+    const scrollTopAfterNewOutput = await page.evaluate(() => {
+      const el = document.querySelector('.lt-log-view');
+      return el.scrollTop;
+    });
+
+    // Should still be at or very close to the same position (accounting for tiny browser variations)
+    expect(Math.abs(scrollTopAfterNewOutput - scrollTopBeforeNewOutput)).toBeLessThan(5);
+
+    // Specifically verify we're NOT at the bottom
+    const isStillAtTop = await page.evaluate(() => {
+      const el = document.querySelector('.lt-log-view');
+      return el.scrollTop < 100; // Still near the top
+    });
+    expect(isStillAtTop).toBe(true);
   });
 });

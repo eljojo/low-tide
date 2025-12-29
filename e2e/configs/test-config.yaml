@@ -14,3 +14,7 @@ apps:
     name: "Test Sleep"
     command: "sh"
     args: ["-c", "echo 'Starting sleep' && sleep 2 && echo 'Done sleeping' && echo 'Done sleeping' > done.txt"]
+  - id: "test-long-output"
+    name: "Test Long Output"
+    command: "sh"
+    args: ["-c", "for i in $(seq 1 100); do echo \"Line $i of long output\"; sleep 0.05; done && echo 'output.txt' > output.txt"]
