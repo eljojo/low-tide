@@ -7,6 +7,11 @@
     playwright.url = "github:pietdevries94/playwright-web-flake";
     playwright.inputs.nixpkgs.follows = "nixpkgs";
     playwright.inputs.flake-utils.follows = "flake-utils";
+
+    flake-compat = {
+      url = "github:NixOS/flake-compat";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, flake-utils, playwright }:
