@@ -53,6 +53,7 @@ type Config struct {
 }
 
 // Load reads the YAML config file from path.
+// It applies defaults, then allows environment variables to override config values.
 func Load(path string) (*Config, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -66,7 +67,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Defaults
+	// Apply defaults
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = ":8080"
 	}
@@ -86,5 +87,24 @@ func Load(path string) (*Config, error) {
 		cfg.StrictURLValidation = false
 	}
 
+	// Allow environment variables to override config values
+	if env := os.Getenv("LOWTIDE_LISTEN_ADDR"); env != "" {
+		cfg.ListenAddr = env
+	}
+	if env := os.Getenv("LOWTIDE_DOWNLOADS_DIR"); env != "" {
+		cfg.DownloadsDir = env
+	}
+	if env := os.Getenv("LOWTIDE_DB_PATH"); env != "" {
+		cfg.DBPath = env
+	}
+
 	return &cfg, nil
+}
+
+// GetConfigPath returns the config file path, checking LOWTIDE_CONFIG env var first.
+func GetConfigPath() string {
+	if env := os.Getenv("LOWTIDE_CONFIG"); env != "" {
+		return env
+	}
+	return "config/config.yaml"
 }

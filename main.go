@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -18,12 +17,7 @@ import (
 func main() {
 	log.Printf("Starting Low Tide ⛵️")
 
-	cfgPath := "config/config.yaml"
-	if env := os.Getenv("LOWTIDE_CONFIG"); env != "" {
-		cfgPath = env
-	}
-
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(config.GetConfigPath())
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}

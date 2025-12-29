@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  low-tide:
+    image: ghcr.io/eljojo/low-tide:latest
+    container_name: low-tide
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persistent volume for downloads and database
+      - low-tide-data:/data
+      # Optional: mount custom config file
+      # - ./custom-config.yaml:/app/config/config.yaml:ro
+    environment:
+      # Downloads directory (inside container)
+      - LOWTIDE_DOWNLOADS_DIR=/data
+      # Database path (inside container)
+      - LOWTIDE_DB_PATH=/data/lowtide.db
+    restart: unless-stopped
+
+volumes:
+  low-tide-data:
+    driver: local

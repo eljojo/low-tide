@@ -19,6 +19,22 @@ Built for homelabs, it provides a clean separation between orchestration and dow
 
 ---
 
+## Quick Start with Docker
+
+```bash
+docker pull ghcr.io/eljojo/low-tide:latest
+
+docker run -d \
+  --name low-tide \
+  -p 8080:8080 \
+  -v low-tide-data:/data \
+  ghcr.io/eljojo/low-tide:latest
+```
+
+See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker usage (including Docker Compose), customization, and deployment guides.
+
+---
+
 ## Configuration
 
 Low Tide is configured via a YAML file. See [`config/config.yaml`](config/config.yaml) for a complete example.
@@ -49,7 +65,7 @@ Low Tide is intentionally small and opinionated.
 - **Single-node / Single-user**: No clustering, distributed workers, or built-in authentication. Use a reverse proxy for auth.
 - **Sequential Execution**: Jobs are processed one-at-a-time by design.
 - **Isolated Artifacts**: Each job runs in a dedicated subfolder within `downloads_dir` for safe tracking and cleanup.
-- **Strict URL Validation**: Rejects local/private IP ranges by default (SSRF protection). Disable via `LOWTIDE_STRICT_URL_VALIDATION=false`.
+- **Strict URL Validation**: Rejects local/private IP ranges by default (SSRF protection).
 - **Config is Privileged**: The server executes configured commands; treat configuration changes as privileged.
 
 ---
@@ -58,6 +74,7 @@ Low Tide is intentionally small and opinionated.
 
 - **Configuration Details**: [`config/config.yaml`](config/config.yaml)
 - **Development & Architecture**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Deployment Guide**: [docs/DOCKER.md](docs/DOCKER.md)
 
 ---
 
